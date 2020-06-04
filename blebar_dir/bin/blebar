@@ -1,0 +1,359 @@
+#!/usr/bin/env python3
+# PYTHON_ARGCOMPLETE_OK
+# @Author: carlosgilgonzalez
+# @Date:   2019-03-12T18:52:56+00:00
+# @Last modified by:   carlosgilgonzalez
+# @Last modified time: 2019-09-14T03:39:15+01:00
+
+import logging
+import sys
+import blebar
+import os
+import argparse
+import json
+from binascii import hexlify
+from upydevice import BLE_DEVICE
+from upydevice.chars import ble_char_dict
+import datetime
+import time
+from PyQt5.QtGui import QIcon
+from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
+from PyQt5.QtCore import QTimer
+from argcomplete.completers import ChoicesCompleter
+
+helparg = '''Mode:
+- config
+- run
+'''
+
+usag = """%(prog)s [Mode] [options]
+"""
+# UPY MODE KEYWORDS AND COMMANDS
+keywords_mode = ['config', 'run']
+log_levs = ['debug', 'info', 'warning', 'error', 'critical']
+parser = argparse.ArgumentParser(prog='blebar',
+                                 description='upydevice bluetooth low energy system tray icon',
+                                 formatter_class=argparse.RawTextHelpFormatter,
+                                 usage=usag)
+parser.version = '0.0.1'
+parser.add_argument(
+    "m", metavar='Mode', help=helparg)
+parser.add_argument('-v', action='version')
+parser.add_argument('-t', help='device target uuid')
+parser.add_argument('-c', help='device average comsumption in mA', default=80,
+                    type=int)
+parser.add_argument('-bat', help='battery capacity in mAh', default=1100,
+                    type=int)
+parser.add_argument('-spow', help='solar panel specs in mW', default=2000,
+                    type=int)
+parser.add_argument('-debug', help='debug info log', action='store_true')
+parser.add_argument('-dflev',
+                    help='debug file mode level, options [debug, info, warning, error, critical]',
+                    default='error').completer = ChoicesCompleter(log_levs)
+parser.add_argument('-dslev',
+                    help='debug sys out mode level, options [debug, info, warning, error, critical]',
+                    default='info').completer = ChoicesCompleter(log_levs)
+args = parser.parse_args()
+
+CRED = '\033[91;1m'
+CGREEN = '\33[32;1m'
+CEND = '\033[0m'
+
+
+class SystemTrayIcon(QSystemTrayIcon):
+    def __init__(self, icon, parent=None, device_uuid=None, device_pass=None,
+                 device_coms=None, battery_cap=None, solar_spec=None,
+                 logger=None):
+        QSystemTrayIcon.__init__(self, icon, parent)
+        # SPLASH SCREEN
+        # Upydevice
+        self.esp32_device = BLE_DEVICE(device_uuid, init=True)
+        while not self.esp32_device.is_connected():
+            self.esp32_device = BLE_DEVICE(device_uuid, init=True)
+            time.sleep(2)
+        # Create the menu
+        self.setIcon(QIcon(blebar.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
+        self.menu = QMenu(parent)
+        # DEVICE INFO
+        self.device_label = QAction("Device: ?")
+        self.menu.addAction(self.device_label)
+        self.MAC_label = QAction("MAC: ?")
+        self.MAC_label.setEnabled(False)
+        self.menu.addAction(self.MAC_label)
+        self.separator = QAction()
+        self.separator.setSeparator(True)
+        self.menu.addAction(self.separator)
+        # SERVICES
+        self.serv_menu = self.menu.addMenu("Services")
+        # self.serv_label.setEnabled(False)
+        # self.serv_menu.addAction(self.serv_label)
+        main_serv = list(self.esp32_device.services.keys())[0]
+        main_serv_char = ble_char_dict[list(self.esp32_device.services[main_serv]['CHARS'].keys())[0]]
+        self.main_service = QAction("{} : {}".format(main_serv, main_serv_char))
+        self.serv_menu.addAction(self.main_service)
+        self.servs_separator = QAction()
+        self.servs_separator.setSeparator(True)
+        self.menu.addAction(self.servs_separator)
+        self.bat_label = QAction("Battery")
+        self.menu.addAction(self.bat_label)
+        self.voltData = QAction("Voltage: ? V")
+        self.menu.addAction(self.voltData)
+        self.voltData.triggered.connect(self.refresh_menu)
+        self.currData = QAction("Current: ? mA")
+        self.menu.addAction(self.currData)
+        self.PowerData = QAction("Power: ? mW")
+        self.menu.addAction(self.PowerData)
+        self.bat_cap = QAction("Capacity: {} mAh".format(battery_cap))
+        self.menu.addAction(self.bat_cap)
+        self.separator_bat = QAction()
+        self.separator_bat.setSeparator(True)
+        self.menu.addAction(self.separator_bat)
+        self.ETC_label = QAction("ETC: ? ")
+        self.menu.addAction(self.ETC_label)
+        self.separator_etc = QAction()
+        self.separator_etc.setSeparator(True)
+        self.menu.addAction(self.separator_etc)
+        self.solar_label = QAction(QIcon(blebar.__path__[0]+"/sunicoHD_dark.png"), "Solar")
+        self.menu.addAction(self.solar_label)
+        self.solar_voltData = QAction("Voltage: ? V")
+        self.menu.addAction(self.solar_voltData)
+        self.solar_voltData.triggered.connect(self.refresh_menu)
+        self.solar_currData = QAction("Current: ? mA")
+        self.menu.addAction(self.solar_currData)
+        self.solar_PowerData = QAction("Power: ? mW")
+        self.menu.addAction(self.solar_PowerData)
+        self.solar_spec_label = QAction("Specs: {} mW".format(solar_spec))
+        self.menu.addAction(self.solar_spec_label)
+        self.separator_exit = QAction()
+        self.separator_exit.setSeparator(True)
+        self.menu.addAction(self.separator_exit)
+        exitAction = self.menu.addAction("Exit")
+        exitAction.triggered.connect(sys.exit)
+        self.setContextMenu(self.menu)
+        self.device_label.setText('Device: {}'.format(
+            self.esp32_device.name))
+        # self.esp8266_device.wr_cmd(
+        #     'from machine import unique_id; unique_id()', silent=True)
+        self.MAC_label.setText('MAC: {}'.format(self.esp32_device.MAC_addrs))
+        # self.esp32_device.wr_cmd('led.on()', silent=True)
+        self.dev_comsumption = device_coms
+        self.battery_cap = battery_cap
+        self.solar_spec = solar_spec
+        self.batVOLT = 0
+        self.batCURR = 0
+        self.batPOW = 0
+        self.solarVOLT = 0
+        self.solarCURR = 0
+        self.solarPOW = 0
+        self.log = logger
+        self.msg_log_battery = '[Battery] {}Voltage: {:.3f} V{}; {}Current: {:.3f} mA{}; Power: {:.3f} mW; Level: {} %; ETC: {}'
+        self.msg_log_solar = '[Solar]   {}Voltage: {:.3f} V{}; {}Current: {:.3f} mA{}; Power: {:.3f} mW; Level: {} %'
+        # INA INIT
+        # bme_lib = "bme280"
+        # import_bme_cmd = "from {} import {};import init_BME280 as bme280;".format(
+        #     bme_lib, bme_lib.upper())
+        # bme_init_cmd = "my_bme = bme280.MY_BME280({},bme280.i2c);".format(
+        #     bme_lib.upper())
+        # bme_final_init = "my_bme.init()"
+        # bme_init_cmd_str = import_bme_cmd + bme_init_cmd + bme_final_init
+        # self.esp32_device.cmd(bme_init_cmd_str, silent=True)
+        # self.esp32_device.wr_cmd('led.off()', silent=True)
+        if args.debug:
+            self.log.info('Device: {}, MAC: {}'.format(self.esp32_device.name,
+                                                        self.esp32_device.MAC_addrs))
+            self.log.info('Battery capacity: {} mAh, Solar Panel: {} mW'.format(battery_cap,
+                                                        solar_spec))
+
+    def set_charging_ICON(self):
+        self.setIcon(QIcon(blebar.__path__[0]+"/sunicoHD_C.png"))
+
+    def set_NO_charging_ICON(self):
+        self.setIcon(QIcon(blebar.__path__[0]+"/sunicoHD.png"))
+
+    def refresh_menu(self):
+
+        data = self.esp32_device.read_service(key='Environmental Sensing', data_fmt="f")[0]
+        try:
+            self.batVOLT = data
+            #
+            # if self.batCURR > 0:
+            #     # DISCHARGING
+            #     self.set_NO_charging_ICON()
+            #
+            #     try:
+            #         lev_perc = round(
+            #             (self.batVOLT - 3.3) / (4.23 - 3.3) * 100, 1)
+            #         batt_le_full = (self.battery_cap / self.batCURR) * 0.70
+            #         batt_le_now = round((batt_le_full * lev_perc) / 100, 2)
+            #         etc_minutes = batt_le_now * 60
+            #         hours, minutes = divmod(etc_minutes, 60)
+            #         etc_HM = "%02d:%02d" % (hours, minutes)
+            #
+            #     except Exception as e:
+            #         batt_le_now = '?'
+            #         etc_HM = '?'
+            #
+            #     if self.batVOLT < 3.4:
+            #         batVolt = [CRED, self.batVOLT, CEND]
+            #         batCurr = [CRED, self.batCURR, CEND]
+            #     else:
+            #         batVolt = [CGREEN, self.batVOLT, CEND]
+            #         batCurr = [CRED, self.batCURR, CEND]
+            # else:
+            #     # CHARGING
+            #     self.set_charging_ICON()
+            #     lev_perc = round((self.batVOLT - 3.3) /
+            #                      (4.23 - 3.3) * 100, 1)
+            #     try:
+            #         batt_le_full = (self.battery_cap /
+            #                         abs(self.batCURR)) * 0.70
+            #         batt_le_now = batt_le_full - \
+            #             round((batt_le_full * lev_perc) / 100, 2)
+            #         etc_minutes = batt_le_now * 60
+            #         hours, minutes = divmod(etc_minutes, 60)
+            #         etc_HM = "%02d:%02d" % (hours, minutes)
+            #     except Exception as e:
+            #         batt_le_now = '?'
+            #         etc_HM = '?'
+            #
+            #     if self.batVOLT < 3.4:
+            #         batVolt = [CRED, self.batVOLT, CEND]
+            #         batCurr = [CGREEN, self.batCURR, CEND]
+            #     else:
+            #         batVolt = [CGREEN, self.batVOLT, CEND]
+            #         batCurr = [CGREEN, self.batCURR, CEND]
+            #     if args.debug:
+            #         self.log.info(self.msg_log_battery.format(*batVolt, *batCurr,
+            #                                                   self.batPOW,
+            #                                                   lev_perc,
+            #                                                   etc_HM))
+            # self.bat_label.setText('Battery: {:.0f} %'.format(lev_perc))
+            self.voltData.setText("Voltage: {:.2f} V".format(self.batVOLT))
+            # self.currData.setText("Current {:.2f} mA".format(self.batCURR))
+            # self.PowerData.setText("Power: {:.2f} mW".format(self.batPOW))
+            # self.ETC_label.setText('ETC: {}'.format(etc_HM))
+            self.solar_label.setIcon(QIcon(blebar.__path__[0]+"/sunicoHD_dark.png"))
+            if args.debug:
+                self.log.info("Voltage: {:.2f} V".format(self.batVOLT))
+        except Exception as e:
+            if args.debug:
+                self.log.error(e)
+        # # text = random.choice(["Odyssey", "Time", "Space"])
+        # # Labels
+        #
+        # self.esp8266_device.wr_cmd(
+        #     'solar_data=[ina.voltage(),ina.current(),ina.power()];solar_data',
+        #     silent=True)
+        # try:
+        #     self.solarVOLT, self.solarCURR, self.solarPOW = self.esp8266_device.output
+        #     solar_lp = round((self.solarPOW/self.solar_spec)*100)
+        #
+        #     if self.solarCURR < self.dev_comsumption:
+        #         if self.solarVOLT < 4.3:
+        #             solarVolt = [CRED, self.solarVOLT, CEND]
+        #             solarCurr = ['', self.batCURR, '']
+        #         else:
+        #             solarVolt = [CGREEN, self.solarVOLT, CEND]
+        #             solarCurr = ['', self.solarCURR, '']
+        #     else:
+        #         if self.solarVOLT < 4.3:
+        #             solarVolt = [CRED, self.solarVOLT, CEND]
+        #             solarCurr = ['', self.solarCURR, '']
+        #         else:
+        #             solarVolt = [CGREEN, self.solarVOLT, CEND]
+        #             solarCurr = ['', self.solarCURR, '']
+        #     if args.debug:
+        #         self.log.info(self.msg_log_solar.format(*solarVolt, *solarCurr,
+        #                                                 self.solarPOW, solar_lp))
+        #     self.solar_label.setText('Solar: {:.0f} %'.format(solar_lp))
+        #     self.solar_voltData.setText("Voltage: {:.2f} V".format(self.solarVOLT))
+        #     self.solar_currData.setText("Current {:.2f} mA".format(self.solarCURR))
+        #     self.solar_PowerData.setText("Power: {:.2f} mW".format(self.solarPOW))
+        # except Exception as e:
+        #     if args.debug:
+        #         self.log.error(e)
+        # text = random.choice(["Odyssey", "Time", "Space"])
+
+
+
+#############################################
+if '.upydevices' not in os.listdir("{}".format(os.environ['HOME'])):
+    os.mkdir("{}/.upydevices".format(os.environ['HOME']))
+# Config device option
+if args.m == 'config':
+    if args.t is None:
+        print('Target uuid required, see -t')
+        sys.exit()
+    upydev_uuid = args.t
+    upy_conf = {'uuid': upydev_uuid, 'Dev_C': args.c,
+                'Bat_C': args.bat, 'Solar_sp': args.spow}
+    file_conf = '{}/blebar_.config'.format(
+        "{}/.upydevices".format(os.environ['HOME']))
+    with open(file_conf, 'w') as config_file:
+        config_file.write(json.dumps(upy_conf))
+
+    print('bleblar device settings saved in upydevices directory!')
+    sys.exit()
+
+if args.m == 'run':
+    if args.m == 'run':
+        print('*'*60)
+        #print(BANNER)
+        print('*'*60)
+
+        # Logging Setup
+
+        # filelog_path = "{}/.upydevices_logs/weatpyfluxd_logs/".format(
+        #     os.environ['HOME'])
+        log_levels = {'debug': logging.DEBUG, 'info': logging.INFO,
+                      'warning': logging.WARNING, 'error': logging.ERROR,
+                      'critical': logging.CRITICAL}
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(log_levels[args.dslev])
+        logging.basicConfig(
+            level=log_levels['debug'],
+            format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
+            # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
+            handlers=[handler])
+        log = logging.getLogger('blebar')  # setup one logger per device
+        # log.setLevel(log_levels[args.dslev]) # MASTER LOG LEVEL
+        # # Filehandler for error
+        # fh_err = logging.FileHandler(''.join([filelog_path, 'weatpyfluxd_error.log']))
+        # fh_err.setLevel(log_levels[args.dflev])
+        # # Formatter for errors
+        # fmt_err = logging.Formatter(
+        #     "%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s")
+        # fh_err.setFormatter(fmt_err)
+        # log.addHandler(fh_err)
+        log.info('Running blebar {}'.format(parser.version))
+
+
+def main():
+    app = QApplication([])
+    app.setQuitOnLastWindowClosed(False)
+
+    # Open upydevice configuration
+    file_conf = '{}/blebar_.config'.format(
+        "{}/.upydevices".format(os.environ['HOME']))
+    with open(file_conf, 'r') as config_file:
+            upy_conf = json.loads(config_file.read())
+
+    # Create the icon
+    icon = QIcon(blebar.__path__[0]+"/bleico_dark.png")
+    trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
+                              device_coms=upy_conf['Dev_C'],
+                              battery_cap=upy_conf['Bat_C'],
+                              solar_spec=upy_conf['Solar_sp'],
+                              logger=log)
+    # Menu refresher
+    timer = QTimer()
+    timer.timeout.connect(trayIcon.refresh_menu)
+    timer.start(1000)  # every 5 secs
+    QTimer.singleShot(10, trayIcon.refresh_menu)  # refresh on open
+
+    trayIcon.show()
+    sys.exit(app.exec_())
+
+
+if __name__ == '__main__':
+    main()
