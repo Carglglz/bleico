@@ -5,3 +5,9 @@ include blebar/sunicoHD_dark.png
 include blebar/bleico_dark.png
 include blebar/bleico.png
 include blebar/HID_DIGITAL_PEN_dark.png
+include blebar/HID_DIGITAL_PEN.png
+include blebar/Bluelogo_dark.png
+include blebar/Bluelogo.png
+include blebar/UNKNOWN_dark.png
+include blebar/UNKNOWN.png
+include blebar/BlueL.png

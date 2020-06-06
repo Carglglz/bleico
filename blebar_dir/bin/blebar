@@ -14,12 +14,16 @@ import json
 from binascii import hexlify
 from upydevice import BLE_DEVICE
 from upydevice.chars import ble_char_dict
+from upydevice.devtools import store_dev, load_dev
 import datetime
 import time
-from PyQt5.QtGui import QIcon
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction
-from PyQt5.QtCore import QTimer
+from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QSplashScreen
+from PyQt5.QtCore import QTimer, QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot, Qt
 from argcomplete.completers import ChoicesCompleter
+import traceback
+import darkdetect
+import asyncio
 
 helparg = '''Mode:
 - config
@@ -60,26 +64,106 @@ CGREEN = '\33[32;1m'
 CEND = '\033[0m'
 
 
+# THREAD WORKERS
+class WorkerSignals(QObject):
+    '''
+    Defines the signals available from a running worker thread.
+
+    Supported signals are:
+
+    finished
+        No data
+
+    error
+        `tuple` (exctype, value, traceback.format_exc() )
+
+    result
+        `object` data returned from processing, anything
+
+    progress
+        `int` indicating % progress
+
+    '''
+    finished = pyqtSignal()
+    error = pyqtSignal(tuple)
+    result = pyqtSignal(object)
+    progress = pyqtSignal(object)
+
+
+class Worker(QRunnable):
+    '''
+    Worker thread
+
+    Inherits from QRunnable to handler worker thread setup, signals and wrap-up.
+
+    :param callback: The function callback to run on this worker thread. Supplied args and
+                     kwargs will be passed through to the runner.
+    :type callback: function
+    :param args: Arguments to pass to the callback function
+    :param kwargs: Keywords to pass to the callback function
+
+    '''
+
+    def __init__(self, fn, *args, **kwargs):
+        super(Worker, self).__init__()
+
+        # Store constructor arguments (re-used for processing)
+        self.fn = fn
+        self.args = args
+        self.kwargs = kwargs
+        self.signals = WorkerSignals()
+        self.kwargs['progress_callback'] = self.signals.progress
+
+    @pyqtSlot()
+    def run(self):
+        '''
+        Initialise the runner function with passed args, kwargs.
+        '''
+
+        # Retrieve args/kwargs here; and fire processing using them
+        try:
+            self.fn(*self.args, **self.kwargs)
+        except:
+            traceback.print_exc()
+            exctype, value = sys.exc_info()[:2]
+            self.signals.error.emit((exctype, value, traceback.format_exc()))
+        # Return the result of the processing
+        finally:
+            self.signals.finished.emit()
+
+
 class SystemTrayIcon(QSystemTrayIcon):
     def __init__(self, icon, parent=None, device_uuid=None, device_pass=None,
                  device_coms=None, battery_cap=None, solar_spec=None,
-                 logger=None):
+                 logger=None, debug=False):
         QSystemTrayIcon.__init__(self, icon, parent)
+        self.debug = debug
         # SPLASH SCREEN
+        # Splash Screen
+        self.splash_pix = QPixmap(blebar.__path__[0]+"/BlueL.png", 'PNG')
+        self.scaled_splash = self.splash_pix.scaled(512, 512, Qt.KeepAspectRatio, transformMode = Qt.SmoothTransformation)
+        self.splash = QSplashScreen(self.scaled_splash, Qt.WindowStaysOnTopHint)
+        self.splash.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
+        self.splash.setEnabled(False)
+        self.splash.show()
+        self.splash.showMessage("Scanning for device...", Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         # Upydevice
         self.esp32_device = BLE_DEVICE(device_uuid, init=True)
         while not self.esp32_device.is_connected():
             self.esp32_device = BLE_DEVICE(device_uuid, init=True)
             time.sleep(2)
+        self.splash.clearMessage()
         # Create the menu
-        self.setIcon(QIcon(blebar.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
+        # self.setIcon(QIcon(blebar.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
+        self.splash.showMessage("Device found", Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         self.menu = QMenu(parent)
         # DEVICE INFO
         self.device_label = QAction("Device: ?")
         self.menu.addAction(self.device_label)
-        self.MAC_label = QAction("MAC: ?")
-        self.MAC_label.setEnabled(False)
-        self.menu.addAction(self.MAC_label)
+        self.uuid_menu = self.menu.addMenu("UUID")
+        self.uuid_label = QAction("X")
+        self.uuid_label.setEnabled(False)
+        self.uuid_menu.addAction(self.uuid_label)
         self.separator = QAction()
         self.separator.setSeparator(True)
         self.menu.addAction(self.separator)
@@ -127,14 +211,14 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.separator_exit = QAction()
         self.separator_exit.setSeparator(True)
         self.menu.addAction(self.separator_exit)
-        exitAction = self.menu.addAction("Exit")
-        exitAction.triggered.connect(sys.exit)
+        self.exitAction = self.menu.addAction("Exit")
+        self.exitAction.triggered.connect(self.exit_app)
         self.setContextMenu(self.menu)
         self.device_label.setText('Device: {}'.format(
             self.esp32_device.name))
         # self.esp8266_device.wr_cmd(
         #     'from machine import unique_id; unique_id()', silent=True)
-        self.MAC_label.setText('MAC: {}'.format(self.esp32_device.MAC_addrs))
+        self.uuid_label.setText('{}'.format(self.esp32_device.UUID))
         # self.esp32_device.wr_cmd('led.on()', silent=True)
         self.dev_comsumption = device_coms
         self.battery_cap = battery_cap
@@ -148,31 +232,67 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.log = logger
         self.msg_log_battery = '[Battery] {}Voltage: {:.3f} V{}; {}Current: {:.3f} mA{}; Power: {:.3f} mW; Level: {} %; ETC: {}'
         self.msg_log_solar = '[Solar]   {}Voltage: {:.3f} V{}; {}Current: {:.3f} mA{}; Power: {:.3f} mW; Level: {} %'
-        # INA INIT
-        # bme_lib = "bme280"
-        # import_bme_cmd = "from {} import {};import init_BME280 as bme280;".format(
-        #     bme_lib, bme_lib.upper())
-        # bme_init_cmd = "my_bme = bme280.MY_BME280({},bme280.i2c);".format(
-        #     bme_lib.upper())
-        # bme_final_init = "my_bme.init()"
-        # bme_init_cmd_str = import_bme_cmd + bme_init_cmd + bme_final_init
-        # self.esp32_device.cmd(bme_init_cmd_str, silent=True)
-        # self.esp32_device.wr_cmd('led.off()', silent=True)
-        if args.debug:
-            self.log.info('Device: {}, MAC: {}'.format(self.esp32_device.name,
-                                                        self.esp32_device.MAC_addrs))
+        # Workers
+        # self.timer.timeout.connect(self.refresh_menu)
+        self.threadpool = QThreadPool()
+        self.quit_thread = False
+        if self.debug:
+            self.log.info("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
+
+        if self.debug:
+            self.log.info('Device: {}, UUID: {}'.format(self.esp32_device.name,
+                                                        self.esp32_device.UUID))
             self.log.info('Battery capacity: {} mAh, Solar Panel: {} mW'.format(battery_cap,
                                                         solar_spec))
+        self.splash.close()
 
-    def set_charging_ICON(self):
-        self.setIcon(QIcon(blebar.__path__[0]+"/sunicoHD_C.png"))
+    def set_dark_mode_ICON(self):
+        self.setIcon(QIcon(blebar.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
 
-    def set_NO_charging_ICON(self):
-        self.setIcon(QIcon(blebar.__path__[0]+"/sunicoHD.png"))
+    def set_day_mode_ICON(self):
+        self.setIcon(QIcon(blebar.__path__[0]+"/{}.png".format(self.esp32_device.appearance)))
 
-    def refresh_menu(self):
+    def autoset_icon(self, n):  # worker callback
+        # self.theme = darkdetect.theme()
+        # if int(datetime.now().strftime("%H")) < 20 and int(datetime.now().strftime("%H")) >= 8:
+        #     self.set_day_mode_ICON()
+        # if int(datetime.now().strftime("%H")) >= 20 or int(datetime.now().strftime("%H")) < 8:
+        #     self.set_dark_mode_ICON()
+        if n == 1:
+            self.set_dark_mode_ICON()
+        else:
+            self.set_day_mode_ICON()
 
-        data = self.esp32_device.read_service(key='Environmental Sensing', data_fmt="f")[0]
+    def update_icon(self, progress_callback):  # in thread
+        while True:
+            if self.quit_thread:
+                break
+            else:
+                self.theme = darkdetect.theme()
+                # if int(datetime.now().strftime("%H")) < 20 and int(datetime.now().strftime("%H")) >= 8:
+                #     self.set_day_mode_ICON()
+                # if int(datetime.now().strftime("%H")) >= 20 or int(datetime.now().strftime("%H")) < 8:
+                #     self.set_dark_mode_ICON()
+                if self.theme == 'Dark':
+                    progress_callback.emit(1)
+                else:
+                    progress_callback.emit(0)
+            time.sleep(1)
+
+    def start_update_icon(self):
+        # Pass the function to execute
+        worker = Worker(self.update_icon)  # Any other args, kwargs are passed to the run function
+        # worker.signals.result.connect(self.print_output)
+        # worker.signals.finished.connect(self.thread_complete)
+        worker.signals.progress.connect(self.autoset_icon)  # connect callback
+
+        # Execute
+        self.threadpool.start(worker)
+
+    def refresh_menu(self, response):
+
+        # data = self.esp32_device.read_service(key='Environmental Sensing', data_fmt="f")[0]
+        data = response
         try:
             self.batVOLT = data
             #
@@ -232,11 +352,10 @@ class SystemTrayIcon(QSystemTrayIcon):
             # self.currData.setText("Current {:.2f} mA".format(self.batCURR))
             # self.PowerData.setText("Power: {:.2f} mW".format(self.batPOW))
             # self.ETC_label.setText('ETC: {}'.format(etc_HM))
-            self.solar_label.setIcon(QIcon(blebar.__path__[0]+"/sunicoHD_dark.png"))
-            if args.debug:
+            if self.debug:
                 self.log.info("Voltage: {:.2f} V".format(self.batVOLT))
         except Exception as e:
-            if args.debug:
+            if self.debug:
                 self.log.error(e)
         # # text = random.choice(["Odyssey", "Time", "Space"])
         # # Labels
@@ -274,6 +393,74 @@ class SystemTrayIcon(QSystemTrayIcon):
         #         self.log.error(e)
         # text = random.choice(["Odyssey", "Time", "Space"])
 
+    def update_menu(self, progress_callback):
+        while True:
+            if self.quit_thread:
+                break
+            else:
+                try:
+                    data = self.esp32_device.read_service(key='Environmental Sensing', data_fmt="f")[0]
+                    progress_callback.emit(data)
+                except Exception as e:
+                    progress_callback.emit(False)
+            time.sleep(1)
+
+    def start_update_menu(self):
+        # Pass the function to execute
+        worker_menu = Worker(self.update_menu) # Any other args, kwargs are passed to the run function
+        # worker.signals.result.connect(self.print_output)
+        # worker.signals.finished.connect(self.thread_complete)
+        # worker.signals.progress.connect(self.progress_fn)
+        worker_menu.signals.progress.connect(self.refresh_menu)
+
+        # Execute
+        self.threadpool.start(worker_menu)
+
+    def shutdown(self, loop):
+        # self.log.info("Shutdown...")
+
+        try:
+            loop.stop()
+        except Exception as e:
+            # print(e)
+            pass
+        # Find all running tasks:
+        try:
+            pending = asyncio.all_tasks(loop)
+
+        # Run loop until tasks done:
+            loop.run_until_complete(asyncio.gather(*pending))
+        except Exception as e:
+            # print(e)
+            pass
+
+        self.log.info("Shutdown complete...")
+        try:
+            self.esp32_device.disconnect()
+        except Exception as e:
+            # print(e)
+            pass
+
+    def exit_app(self):
+        if self.debug:
+            self.log.info('Closing now...')
+            self.log.info('Done!')
+            self.log.info('Shutdown pending tasks...')
+        self.quit_thread = True
+        self.log.info("{}".format(self.esp32_device.loop.is_running()))
+        if self.esp32_device.loop.is_running():
+            self.shutdown(self.esp32_device.loop)
+        # self.esp32_device.loop.stop()
+        # Run loop until tasks done
+        else:
+            try:
+                self.esp32_device.disconnect()
+            except Exception as e:
+                pass
+        time.sleep(2)
+        sys.exit()
+
+
 
 
 #############################################
@@ -284,48 +471,53 @@ if args.m == 'config':
     if args.t is None:
         print('Target uuid required, see -t')
         sys.exit()
-    upydev_uuid = args.t
-    upy_conf = {'uuid': upydev_uuid, 'Dev_C': args.c,
-                'Bat_C': args.bat, 'Solar_sp': args.spow}
-    file_conf = '{}/blebar_.config'.format(
-        "{}/.upydevices".format(os.environ['HOME']))
-    with open(file_conf, 'w') as config_file:
-        config_file.write(json.dumps(upy_conf))
+    # upydev_uuid = args.t
+    # upy_conf = {'uuid': upydev_uuid, 'Dev_C': args.c,
+    #             'Bat_C': args.bat, 'Solar_sp': args.spow}
+    # file_conf = '{}/blebar_.config'.format(
+    #     "{}/.upydevices".format(os.environ['HOME']))
+    # with open(file_conf, 'w') as config_file:
+    #     config_file.write(json.dumps(upy_conf))
+    store_dev('blebar_', uuid=args.t, Dev_C=args.c, Bat_C=args.bat,
+              Solar_sp=args.spow)
 
     print('bleblar device settings saved in upydevices directory!')
     sys.exit()
 
 if args.m == 'run':
-    if args.m == 'run':
-        print('*'*60)
-        #print(BANNER)
-        print('*'*60)
 
-        # Logging Setup
+    print('*'*60)
+    #print(BANNER)
+    print('*'*60)
 
-        # filelog_path = "{}/.upydevices_logs/weatpyfluxd_logs/".format(
-        #     os.environ['HOME'])
-        log_levels = {'debug': logging.DEBUG, 'info': logging.INFO,
-                      'warning': logging.WARNING, 'error': logging.ERROR,
-                      'critical': logging.CRITICAL}
-        handler = logging.StreamHandler(sys.stdout)
-        handler.setLevel(log_levels[args.dslev])
-        logging.basicConfig(
-            level=log_levels['debug'],
-            format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
-            # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
-            handlers=[handler])
-        log = logging.getLogger('blebar')  # setup one logger per device
-        # log.setLevel(log_levels[args.dslev]) # MASTER LOG LEVEL
-        # # Filehandler for error
-        # fh_err = logging.FileHandler(''.join([filelog_path, 'weatpyfluxd_error.log']))
-        # fh_err.setLevel(log_levels[args.dflev])
-        # # Formatter for errors
-        # fmt_err = logging.Formatter(
-        #     "%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s")
-        # fh_err.setFormatter(fmt_err)
-        # log.addHandler(fh_err)
-        log.info('Running blebar {}'.format(parser.version))
+    config_file_name = 'blebar_.config'
+    config_file_path = "{}/.upydevices".format(os.environ['HOME'])
+    device_is_configurated = config_file_name in os.listdir(config_file_path)
+    # Logging Setup
+
+    # filelog_path = "{}/.upydevices_logs/weatpyfluxd_logs/".format(
+    #     os.environ['HOME'])
+    log_levels = {'debug': logging.DEBUG, 'info': logging.INFO,
+                  'warning': logging.WARNING, 'error': logging.ERROR,
+                  'critical': logging.CRITICAL}
+    handler = logging.StreamHandler(sys.stdout)
+    handler.setLevel(log_levels[args.dslev])
+    logging.basicConfig(
+        level=log_levels['debug'],
+        format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
+        # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
+        handlers=[handler])
+    log = logging.getLogger('blebar')  # setup one logger per device
+    # log.setLevel(log_levels[args.dslev]) # MASTER LOG LEVEL
+    # # Filehandler for error
+    # fh_err = logging.FileHandler(''.join([filelog_path, 'weatpyfluxd_error.log']))
+    # fh_err.setLevel(log_levels[args.dflev])
+    # # Formatter for errors
+    # fmt_err = logging.Formatter(
+    #     "%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s")
+    # fh_err.setFormatter(fmt_err)
+    # log.addHandler(fh_err)
+    log.info('Running blebar {}'.format(parser.version))
 
 
 def main():
@@ -333,23 +525,29 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     # Open upydevice configuration
-    file_conf = '{}/blebar_.config'.format(
-        "{}/.upydevices".format(os.environ['HOME']))
-    with open(file_conf, 'r') as config_file:
-            upy_conf = json.loads(config_file.read())
+    if device_is_configurated:
+        upy_conf = load_dev('blebar_')
+        if upy_conf is None:
+            log.error("CONFIGURATION FILE NOT FOUND")
+            sys.exit()
 
     # Create the icon
-    icon = QIcon(blebar.__path__[0]+"/bleico_dark.png")
+    if not darkdetect.isDark():
+        icon = QIcon(blebar.__path__[0]+"/Bluelogo_dark.png")
+    else:
+        icon = QIcon(blebar.__path__[0]+"/Bluelogo.png")
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
                               device_coms=upy_conf['Dev_C'],
                               battery_cap=upy_conf['Bat_C'],
                               solar_spec=upy_conf['Solar_sp'],
-                              logger=log)
+                              logger=log, debug=args.debug)
     # Menu refresher
-    timer = QTimer()
-    timer.timeout.connect(trayIcon.refresh_menu)
-    timer.start(1000)  # every 5 secs
-    QTimer.singleShot(10, trayIcon.refresh_menu)  # refresh on open
+    # timer = QTimer()
+    # timer.timeout.connect(trayIcon.refresh_menu)
+    # timer.start(1000)  # every 5 secs
+    # QTimer.singleShot(10, trayIcon.refresh_menu)  # refresh on open
+    trayIcon.start_update_icon()
+    trayIcon.start_update_menu()
 
     trayIcon.show()
     sys.exit(app.exec_())
