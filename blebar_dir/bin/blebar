@@ -138,6 +138,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                  logger=None, debug=False):
         QSystemTrayIcon.__init__(self, icon, parent)
         self.debug = debug
+        self.log = logger
         # SPLASH SCREEN
         # Splash Screen
         self.splash_pix = QPixmap(blebar.__path__[0]+"/BlueL.png", 'PNG')
@@ -171,10 +172,17 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.serv_menu = self.menu.addMenu("Services")
         # self.serv_label.setEnabled(False)
         # self.serv_menu.addAction(self.serv_label)
-        main_serv = list(self.esp32_device.services.keys())[0]
-        main_serv_char = ble_char_dict[list(self.esp32_device.services[main_serv]['CHARS'].keys())[0]]
-        self.main_service = QAction("{} : {}".format(main_serv, main_serv_char))
-        self.serv_menu.addAction(self.main_service)
+        # main_serv = list(self.esp32_device.services_rsum.keys())[0]
+        # main_serv_char = self.esp32_device.services_rsum[main_serv][0]
+        # self.main_service = QAction("{} : {}".format(main_serv, main_serv_char))
+        # self.serv_menu.addAction(self.main_service)
+        for serv in self.esp32_device.services_rsum.keys():
+            self.serv_action = self.serv_menu.addMenu("{}".format(serv))
+            self.log.info(serv)
+            for char in self.esp32_device.services_rsum[serv]:
+                self.log.info(char)
+                self.serv_action.addAction(char)
+            # self.serv_menu.addAction(self.main_service)
         self.servs_separator = QAction()
         self.servs_separator.setSeparator(True)
         self.menu.addAction(self.servs_separator)
@@ -229,7 +237,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.solarVOLT = 0
         self.solarCURR = 0
         self.solarPOW = 0
-        self.log = logger
         self.msg_log_battery = '[Battery] {}Voltage: {:.3f} V{}; {}Current: {:.3f} mA{}; Power: {:.3f} mW; Level: {} %; ETC: {}'
         self.msg_log_solar = '[Solar]   {}Voltage: {:.3f} V{}; {}Current: {:.3f} mA{}; Power: {:.3f} mW; Level: {} %'
         # Workers
@@ -399,7 +406,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 break
             else:
                 try:
-                    data = self.esp32_device.read_service(key='Environmental Sensing', data_fmt="f")[0]
+                    data = self.esp32_device.read_service(key='Battery Service', data_fmt="f")[0]
                     progress_callback.emit(data)
                 except Exception as e:
                     progress_callback.emit(False)

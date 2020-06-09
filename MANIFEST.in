@@ -11,3 +11,5 @@ include blebar/Bluelogo.png
 include blebar/UNKNOWN_dark.png
 include blebar/UNKNOWN.png
 include blebar/BlueL.png
+include blebar/GENERIC_THERMOMETER.png
+include blebar/GENERIC_THERMOMETER_dark.png
