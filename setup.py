@@ -6,14 +6,14 @@
 
 from setuptools import setup
 
-setup(name='blebar',
+setup(name='bleico',
       version='0.0.1',
       description='Bluetooth Low Energy System Tray App',
-      url='http://github.com/cgglz/blebar',
+      url='http://github.com/cgglz/bleico',
       author='Carlos Gil Gonzalez',
       author_email='carlosgilglez@gmail.com',
       license='MIT',
-      packages=['blebar'],
+      packages=['bleico'],
       zip_safe=False,
       include_package_data=True,
-      scripts=['blebar_dir/bin/blebar'])
+      scripts=['bleico_dir/bin/bleico'])

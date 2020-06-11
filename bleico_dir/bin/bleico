@@ -7,7 +7,7 @@
 
 import logging
 import sys
-import blebar
+import bleico
 import os
 import argparse
 import json
@@ -35,7 +35,7 @@ usag = """%(prog)s [Mode] [options]
 # UPY MODE KEYWORDS AND COMMANDS
 keywords_mode = ['config', 'run']
 log_levs = ['debug', 'info', 'warning', 'error', 'critical']
-parser = argparse.ArgumentParser(prog='blebar',
+parser = argparse.ArgumentParser(prog='bleico',
                                  description='upydevice bluetooth low energy system tray icon',
                                  formatter_class=argparse.RawTextHelpFormatter,
                                  usage=usag)
@@ -141,7 +141,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.log = logger
         # SPLASH SCREEN
         # Splash Screen
-        self.splash_pix = QPixmap(blebar.__path__[0]+"/BlueL.png", 'PNG')
+        self.splash_pix = QPixmap(bleico.__path__[0]+"/BlueL.png", 'PNG')
         self.scaled_splash = self.splash_pix.scaled(512, 512, Qt.KeepAspectRatio, transformMode = Qt.SmoothTransformation)
         self.splash = QSplashScreen(self.scaled_splash, Qt.WindowStaysOnTopHint)
         self.splash.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
@@ -155,7 +155,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             time.sleep(2)
         self.splash.clearMessage()
         # Create the menu
-        # self.setIcon(QIcon(blebar.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
+        # self.setIcon(QIcon(bleico.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
         self.splash.showMessage("Device found", Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         self.menu = QMenu(parent)
         # DEVICE INFO
@@ -186,36 +186,27 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.servs_separator = QAction()
         self.servs_separator.setSeparator(True)
         self.menu.addAction(self.servs_separator)
-        self.bat_label = QAction("Battery")
-        self.menu.addAction(self.bat_label)
-        self.voltData = QAction("Voltage: ? V")
-        self.menu.addAction(self.voltData)
-        self.voltData.triggered.connect(self.refresh_menu)
-        self.currData = QAction("Current: ? mA")
-        self.menu.addAction(self.currData)
-        self.PowerData = QAction("Power: ? mW")
-        self.menu.addAction(self.PowerData)
-        self.bat_cap = QAction("Capacity: {} mAh".format(battery_cap))
-        self.menu.addAction(self.bat_cap)
-        self.separator_bat = QAction()
-        self.separator_bat.setSeparator(True)
-        self.menu.addAction(self.separator_bat)
-        self.ETC_label = QAction("ETC: ? ")
-        self.menu.addAction(self.ETC_label)
+        self.serv_actions_dict = {serv: QAction(serv) for serv in self.esp32_device.services_rsum.keys()}
+        self.serv_separator_dict = {}
+        self.char_actions_dict = {}
+        for key, serv in self.serv_actions_dict.items():
+            serv.setEnabled(False)
+            self.menu.addAction(serv)
+            for char in self.esp32_device.services_rsum[key]:
+                if char == 'Appearance':
+                    self.char_actions_dict[char] = self.menu.addMenu("Appearance")
+                    self.char_actions_dict[char].addAction(self.esp32_device.appearance)
+                else:
+                    self.char_actions_dict[char] = QAction("{}: ? ua".format(char))
+                    self.menu.addAction(self.char_actions_dict[char])
+            self.serv_separator_dict[key] = QAction()
+            self.serv_separator_dict[key].setSeparator(True)
+            self.menu.addAction(self.serv_separator_dict[key])
         self.separator_etc = QAction()
         self.separator_etc.setSeparator(True)
         self.menu.addAction(self.separator_etc)
-        self.solar_label = QAction(QIcon(blebar.__path__[0]+"/sunicoHD_dark.png"), "Solar")
+        self.solar_label = QAction(QIcon(bleico.__path__[0]+"/bleico_dark.png"), "BLE")
         self.menu.addAction(self.solar_label)
-        self.solar_voltData = QAction("Voltage: ? V")
-        self.menu.addAction(self.solar_voltData)
-        self.solar_voltData.triggered.connect(self.refresh_menu)
-        self.solar_currData = QAction("Current: ? mA")
-        self.menu.addAction(self.solar_currData)
-        self.solar_PowerData = QAction("Power: ? mW")
-        self.menu.addAction(self.solar_PowerData)
-        self.solar_spec_label = QAction("Specs: {} mW".format(solar_spec))
-        self.menu.addAction(self.solar_spec_label)
         self.separator_exit = QAction()
         self.separator_exit.setSeparator(True)
         self.menu.addAction(self.separator_exit)
@@ -249,15 +240,13 @@ class SystemTrayIcon(QSystemTrayIcon):
         if self.debug:
             self.log.info('Device: {}, UUID: {}'.format(self.esp32_device.name,
                                                         self.esp32_device.UUID))
-            self.log.info('Battery capacity: {} mAh, Solar Panel: {} mW'.format(battery_cap,
-                                                        solar_spec))
         self.splash.close()
 
     def set_dark_mode_ICON(self):
-        self.setIcon(QIcon(blebar.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
+        self.setIcon(QIcon(bleico.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
 
     def set_day_mode_ICON(self):
-        self.setIcon(QIcon(blebar.__path__[0]+"/{}.png".format(self.esp32_device.appearance)))
+        self.setIcon(QIcon(bleico.__path__[0]+"/{}.png".format(self.esp32_device.appearance)))
 
     def autoset_icon(self, n):  # worker callback
         # self.theme = darkdetect.theme()
@@ -301,66 +290,12 @@ class SystemTrayIcon(QSystemTrayIcon):
         # data = self.esp32_device.read_service(key='Environmental Sensing', data_fmt="f")[0]
         data = response
         try:
-            self.batVOLT = data
-            #
-            # if self.batCURR > 0:
-            #     # DISCHARGING
-            #     self.set_NO_charging_ICON()
-            #
-            #     try:
-            #         lev_perc = round(
-            #             (self.batVOLT - 3.3) / (4.23 - 3.3) * 100, 1)
-            #         batt_le_full = (self.battery_cap / self.batCURR) * 0.70
-            #         batt_le_now = round((batt_le_full * lev_perc) / 100, 2)
-            #         etc_minutes = batt_le_now * 60
-            #         hours, minutes = divmod(etc_minutes, 60)
-            #         etc_HM = "%02d:%02d" % (hours, minutes)
-            #
-            #     except Exception as e:
-            #         batt_le_now = '?'
-            #         etc_HM = '?'
-            #
-            #     if self.batVOLT < 3.4:
-            #         batVolt = [CRED, self.batVOLT, CEND]
-            #         batCurr = [CRED, self.batCURR, CEND]
-            #     else:
-            #         batVolt = [CGREEN, self.batVOLT, CEND]
-            #         batCurr = [CRED, self.batCURR, CEND]
-            # else:
-            #     # CHARGING
-            #     self.set_charging_ICON()
-            #     lev_perc = round((self.batVOLT - 3.3) /
-            #                      (4.23 - 3.3) * 100, 1)
-            #     try:
-            #         batt_le_full = (self.battery_cap /
-            #                         abs(self.batCURR)) * 0.70
-            #         batt_le_now = batt_le_full - \
-            #             round((batt_le_full * lev_perc) / 100, 2)
-            #         etc_minutes = batt_le_now * 60
-            #         hours, minutes = divmod(etc_minutes, 60)
-            #         etc_HM = "%02d:%02d" % (hours, minutes)
-            #     except Exception as e:
-            #         batt_le_now = '?'
-            #         etc_HM = '?'
-            #
-            #     if self.batVOLT < 3.4:
-            #         batVolt = [CRED, self.batVOLT, CEND]
-            #         batCurr = [CGREEN, self.batCURR, CEND]
-            #     else:
-            #         batVolt = [CGREEN, self.batVOLT, CEND]
-            #         batCurr = [CGREEN, self.batCURR, CEND]
-            #     if args.debug:
-            #         self.log.info(self.msg_log_battery.format(*batVolt, *batCurr,
-            #                                                   self.batPOW,
-            #                                                   lev_perc,
-            #                                                   etc_HM))
-            # self.bat_label.setText('Battery: {:.0f} %'.format(lev_perc))
-            self.voltData.setText("Voltage: {:.2f} V".format(self.batVOLT))
-            # self.currData.setText("Current {:.2f} mA".format(self.batCURR))
-            # self.PowerData.setText("Power: {:.2f} mW".format(self.batPOW))
-            # self.ETC_label.setText('ETC: {}'.format(etc_HM))
-            if self.debug:
-                self.log.info("Voltage: {:.2f} V".format(self.batVOLT))
+            for char in data.keys():
+                self.char_actions_dict[char].setText("{}: {:.2f} ua".format(char, data[char]))
+                if self.debug:
+                    for serv in self.esp32_device.services_rsum.keys():
+                        if char in self.esp32_device.services_rsum[serv]:
+                            self.log.info("{} [{}] : {:.2f} ua".format(serv, char, data[char]))
         except Exception as e:
             if self.debug:
                 self.log.error(e)
@@ -406,7 +341,11 @@ class SystemTrayIcon(QSystemTrayIcon):
                 break
             else:
                 try:
-                    data = self.esp32_device.read_service(key='Battery Service', data_fmt="f")[0]
+                    data = {}
+                    for char in self.esp32_device.readables.keys():
+                        if char != 'Appearance':
+                            data[char] = (self.esp32_device.read_service(key=char,
+                                                                       data_fmt="f")[0])
                     progress_callback.emit(data)
                 except Exception as e:
                     progress_callback.emit(False)
@@ -481,11 +420,11 @@ if args.m == 'config':
     # upydev_uuid = args.t
     # upy_conf = {'uuid': upydev_uuid, 'Dev_C': args.c,
     #             'Bat_C': args.bat, 'Solar_sp': args.spow}
-    # file_conf = '{}/blebar_.config'.format(
+    # file_conf = '{}/bleico_.config'.format(
     #     "{}/.upydevices".format(os.environ['HOME']))
     # with open(file_conf, 'w') as config_file:
     #     config_file.write(json.dumps(upy_conf))
-    store_dev('blebar_', uuid=args.t, Dev_C=args.c, Bat_C=args.bat,
+    store_dev('bleico_', uuid=args.t, Dev_C=args.c, Bat_C=args.bat,
               Solar_sp=args.spow)
 
     print('bleblar device settings saved in upydevices directory!')
@@ -497,7 +436,7 @@ if args.m == 'run':
     #print(BANNER)
     print('*'*60)
 
-    config_file_name = 'blebar_.config'
+    config_file_name = 'bleico_.config'
     config_file_path = "{}/.upydevices".format(os.environ['HOME'])
     device_is_configurated = config_file_name in os.listdir(config_file_path)
     # Logging Setup
@@ -514,7 +453,7 @@ if args.m == 'run':
         format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
         # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
         handlers=[handler])
-    log = logging.getLogger('blebar')  # setup one logger per device
+    log = logging.getLogger('bleico')  # setup one logger per device
     # log.setLevel(log_levels[args.dslev]) # MASTER LOG LEVEL
     # # Filehandler for error
     # fh_err = logging.FileHandler(''.join([filelog_path, 'weatpyfluxd_error.log']))
@@ -524,7 +463,7 @@ if args.m == 'run':
     #     "%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s")
     # fh_err.setFormatter(fmt_err)
     # log.addHandler(fh_err)
-    log.info('Running blebar {}'.format(parser.version))
+    log.info('Running bleico {}'.format(parser.version))
 
 
 def main():
@@ -533,16 +472,16 @@ def main():
 
     # Open upydevice configuration
     if device_is_configurated:
-        upy_conf = load_dev('blebar_')
+        upy_conf = load_dev('bleico_')
         if upy_conf is None:
             log.error("CONFIGURATION FILE NOT FOUND")
             sys.exit()
 
     # Create the icon
     if not darkdetect.isDark():
-        icon = QIcon(blebar.__path__[0]+"/Bluelogo_dark.png")
+        icon = QIcon(bleico.__path__[0]+"/Bluelogo_dark.png")
     else:
-        icon = QIcon(blebar.__path__[0]+"/Bluelogo.png")
+        icon = QIcon(bleico.__path__[0]+"/Bluelogo.png")
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
                               device_coms=upy_conf['Dev_C'],
                               battery_cap=upy_conf['Bat_C'],
