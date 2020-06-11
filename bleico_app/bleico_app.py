@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# PYTHON_ARGCOMPLETE_OK
 # @Author: carlosgilgonzalez
 # @Date:   2019-03-12T18:52:56+00:00
 # @Last modified by:   carlosgilgonzalez
@@ -25,40 +24,14 @@ import traceback
 import darkdetect
 import asyncio
 
-# TODO: DEVICE STATE, LAST UPDATE
-helparg = '''Mode:
-- config
-- run
-'''
-
-usag = """%(prog)s [Mode] [options]
-"""
-# UPY MODE KEYWORDS AND COMMANDS
-keywords_mode = ['config', 'run']
-log_levs = ['debug', 'info', 'warning', 'error', 'critical']
-parser = argparse.ArgumentParser(prog='bleico',
-                                 description='upydevice bluetooth low energy system tray icon',
-                                 formatter_class=argparse.RawTextHelpFormatter,
-                                 usage=usag)
-parser.version = '0.0.1'
-parser.add_argument(
-    "m", metavar='Mode', help=helparg)
-parser.add_argument('-v', action='version')
-parser.add_argument('-t', help='device target uuid')
-parser.add_argument('-c', help='device average comsumption in mA', default=80,
-                    type=int)
-parser.add_argument('-bat', help='battery capacity in mAh', default=1100,
-                    type=int)
-parser.add_argument('-spow', help='solar panel specs in mW', default=2000,
-                    type=int)
-parser.add_argument('-debug', help='debug info log', action='store_true')
-parser.add_argument('-dflev',
-                    help='debug file mode level, options [debug, info, warning, error, critical]',
-                    default='error').completer = ChoicesCompleter(log_levs)
-parser.add_argument('-dslev',
-                    help='debug sys out mode level, options [debug, info, warning, error, critical]',
-                    default='info').completer = ChoicesCompleter(log_levs)
-args = parser.parse_args()
+frozen = 'not'
+if getattr(sys, 'frozen', False):
+        # we are running in a bundle
+        frozen = 'ever so'
+        bundle_dir = sys._MEIPASS
+else:
+        # we are running in a normal Python environment
+        bundle_dir = os.path.dirname(os.path.abspath(__file__))
 
 
 # THREAD WORKERS
@@ -132,13 +105,14 @@ class Worker(QRunnable):
 class SystemTrayIcon(QSystemTrayIcon):
     def __init__(self, icon, parent=None, device_uuid=None, device_pass=None,
                  device_coms=None, battery_cap=None, solar_spec=None,
-                 logger=None, debug=False):
+                 logger=None, debug=False, bundledir=bundle_dir):
         QSystemTrayIcon.__init__(self, icon, parent)
         self.debug = debug
         self.log = logger
+        self.bundle_dir = bundledir
         # SPLASH SCREEN
         # Splash Screen
-        self.splash_pix = QPixmap(bleico.__path__[0]+"/BlueL.png", 'PNG')
+        self.splash_pix = QPixmap(self.bundle_dir+"/BlueL.png", 'PNG')
         self.scaled_splash = self.splash_pix.scaled(512, 512, Qt.KeepAspectRatio, transformMode = Qt.SmoothTransformation)
         self.splash = QSplashScreen(self.scaled_splash, Qt.WindowStaysOnTopHint)
         self.splash.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
@@ -152,7 +126,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             time.sleep(2)
         self.splash.clearMessage()
         # Create the menu
-        # self.setIcon(QIcon(bleico.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
+        # self.setIcon(QIcon(self.bundle_dir+"/{}_dark.png".format(self.esp32_device.appearance)))
         self.splash.showMessage("Device found", Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         self.menu = QMenu(parent)
         # DEVICE INFO
@@ -202,7 +176,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.separator_etc = QAction()
         self.separator_etc.setSeparator(True)
         self.menu.addAction(self.separator_etc)
-        self.solar_label = QAction(QIcon(bleico.__path__[0]+"/bleico_dark.png"), "BLE")
+        self.solar_label = QAction(QIcon(self.bundle_dir+"/bleico_dark.png"), "BLE")
         self.menu.addAction(self.solar_label)
         self.separator_exit = QAction()
         self.separator_exit.setSeparator(True)
@@ -241,10 +215,10 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.splash.close()
 
     def set_dark_mode_ICON(self):
-        self.setIcon(QIcon(bleico.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
+        self.setIcon(QIcon(self.bundle_dir+"/{}_dark.png".format(self.esp32_device.appearance)))
 
     def set_day_mode_ICON(self):
-        self.setIcon(QIcon(bleico.__path__[0]+"/{}.png".format(self.esp32_device.appearance)))
+        self.setIcon(QIcon(self.bundle_dir+"/{}.png".format(self.esp32_device.appearance)))
 
     def autoset_icon(self, n):  # worker callback
         # self.theme = darkdetect.theme()
@@ -405,63 +379,34 @@ class SystemTrayIcon(QSystemTrayIcon):
         sys.exit()
 
 
+config_file_name = 'bleico_.config'
+config_file_path = "{}/.upydevices".format(os.environ['HOME'])
+device_is_configurated = config_file_name in os.listdir(config_file_path)
+# Logging Setup
 
-
-#############################################
-if '.upydevices' not in os.listdir("{}".format(os.environ['HOME'])):
-    os.mkdir("{}/.upydevices".format(os.environ['HOME']))
-# Config device option
-if args.m == 'config':
-    if args.t is None:
-        print('Target uuid required, see -t')
-        sys.exit()
-    # upydev_uuid = args.t
-    # upy_conf = {'uuid': upydev_uuid, 'Dev_C': args.c,
-    #             'Bat_C': args.bat, 'Solar_sp': args.spow}
-    # file_conf = '{}/bleico_.config'.format(
-    #     "{}/.upydevices".format(os.environ['HOME']))
-    # with open(file_conf, 'w') as config_file:
-    #     config_file.write(json.dumps(upy_conf))
-    store_dev('bleico_', uuid=args.t, Dev_C=args.c, Bat_C=args.bat,
-              Solar_sp=args.spow)
-
-    print('bleblar device settings saved in upydevices directory!')
-    sys.exit()
-
-if args.m == 'run':
-
-    print('*'*60)
-    #print(BANNER)
-    print('*'*60)
-
-    config_file_name = 'bleico_.config'
-    config_file_path = "{}/.upydevices".format(os.environ['HOME'])
-    device_is_configurated = config_file_name in os.listdir(config_file_path)
-    # Logging Setup
-
-    # filelog_path = "{}/.upydevices_logs/weatpyfluxd_logs/".format(
-    #     os.environ['HOME'])
-    log_levels = {'debug': logging.DEBUG, 'info': logging.INFO,
-                  'warning': logging.WARNING, 'error': logging.ERROR,
-                  'critical': logging.CRITICAL}
-    handler = logging.StreamHandler(sys.stdout)
-    handler.setLevel(log_levels[args.dslev])
-    logging.basicConfig(
-        level=log_levels['debug'],
-        format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
-        # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
-        handlers=[handler])
-    log = logging.getLogger('bleico')  # setup one logger per device
-    # log.setLevel(log_levels[args.dslev]) # MASTER LOG LEVEL
-    # # Filehandler for error
-    # fh_err = logging.FileHandler(''.join([filelog_path, 'weatpyfluxd_error.log']))
-    # fh_err.setLevel(log_levels[args.dflev])
-    # # Formatter for errors
-    # fmt_err = logging.Formatter(
-    #     "%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s")
-    # fh_err.setFormatter(fmt_err)
-    # log.addHandler(fh_err)
-    log.info('Running bleico {}'.format(parser.version))
+# filelog_path = "{}/.upydevices_logs/weatpyfluxd_logs/".format(
+#     os.environ['HOME'])
+log_levels = {'debug': logging.DEBUG, 'info': logging.INFO,
+              'warning': logging.WARNING, 'error': logging.ERROR,
+              'critical': logging.CRITICAL}
+handler = logging.StreamHandler(sys.stdout)
+handler.setLevel(log_levels['error'])
+logging.basicConfig(
+    level=log_levels['debug'],
+    format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
+    # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
+    handlers=[handler])
+log = logging.getLogger('bleico')  # setup one logger per device
+# log.setLevel(log_levels[args.dslev]) # MASTER LOG LEVEL
+# # Filehandler for error
+# fh_err = logging.FileHandler(''.join([filelog_path, 'weatpyfluxd_error.log']))
+# fh_err.setLevel(log_levels[args.dflev])
+# # Formatter for errors
+# fmt_err = logging.Formatter(
+#     "%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s")
+# fh_err.setFormatter(fmt_err)
+# log.addHandler(fh_err)
+log.info('Running bleico {}'.format('0.0.1'))
 
 
 def main():
@@ -477,14 +422,14 @@ def main():
 
     # Create the icon
     if not darkdetect.isDark():
-        icon = QIcon(bleico.__path__[0]+"/Bluelogo_dark.png")
+        icon = QIcon(bundle_dir+"/Bluelogo_dark.png")
     else:
-        icon = QIcon(bleico.__path__[0]+"/Bluelogo.png")
+        icon = QIcon(bundle_dir+"/Bluelogo.png")
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
                               device_coms=upy_conf['Dev_C'],
                               battery_cap=upy_conf['Bat_C'],
                               solar_spec=upy_conf['Solar_sp'],
-                              logger=log, debug=args.debug)
+                              logger=log, debug=True)
     # Menu refresher
     # timer = QTimer()
     # timer.timeout.connect(trayIcon.refresh_menu)
