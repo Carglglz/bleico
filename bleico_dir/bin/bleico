@@ -25,6 +25,7 @@ import traceback
 import darkdetect
 import asyncio
 
+# TODO: DEVICE STATE, LAST UPDATE
 helparg = '''Mode:
 - config
 - run
@@ -240,6 +241,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         if self.debug:
             self.log.info('Device: {}, UUID: {}'.format(self.esp32_device.name,
                                                         self.esp32_device.UUID))
+        self.splash.clearMessage()
         self.splash.close()
 
     def set_dark_mode_ICON(self):
