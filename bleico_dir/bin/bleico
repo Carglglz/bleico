@@ -130,8 +130,7 @@ class Worker(QRunnable):
 
 
 class SystemTrayIcon(QSystemTrayIcon):
-    def __init__(self, icon, parent=None, device_uuid=None, device_pass=None,
-                 device_coms=None, battery_cap=None, solar_spec=None,
+    def __init__(self, icon, parent=None, device_uuid=None,
                  logger=None, debug=False):
         QSystemTrayIcon.__init__(self, icon, parent)
         self.debug = debug
@@ -153,7 +152,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.splash.clearMessage()
         # Create the menu
         # self.setIcon(QIcon(bleico.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
-        self.splash.showMessage("Device found", Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
+        self.splash.showMessage("Device {} found".format(self.esp32_device.name),
+                                Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         self.menu = QMenu(parent)
         # DEVICE INFO
         self.device_label = QAction("Device: ?")
@@ -173,11 +173,16 @@ class SystemTrayIcon(QSystemTrayIcon):
         # main_serv_char = self.esp32_device.services_rsum[main_serv][0]
         # self.main_service = QAction("{} : {}".format(main_serv, main_serv_char))
         # self.serv_menu.addAction(self.main_service)
+        if self.debug:
+            self.log.info("Device {} found".format(self.esp32_device.name))
+            self.log.info("Services:")
         for serv in self.esp32_device.services_rsum.keys():
             self.serv_action = self.serv_menu.addMenu("{}".format(serv))
-            self.log.info(serv)
+            if self.debug:
+                self.log.info(" (S) {}".format(serv))
             for char in self.esp32_device.services_rsum[serv]:
-                self.log.info(char)
+                if self.debug:
+                    self.log.info(" (C)  - {}".format(char))
                 self.serv_action.addAction(char)
             # self.serv_menu.addAction(self.main_service)
         self.servs_separator = QAction()
@@ -212,23 +217,10 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.setContextMenu(self.menu)
         self.device_label.setText('Device: {}'.format(
             self.esp32_device.name))
-        # self.esp8266_device.wr_cmd(
-        #     'from machine import unique_id; unique_id()', silent=True)
+
         self.uuid_label.setText('{}'.format(self.esp32_device.UUID))
-        # self.esp32_device.wr_cmd('led.on()', silent=True)
-        self.dev_comsumption = device_coms
-        self.battery_cap = battery_cap
-        self.solar_spec = solar_spec
-        self.batVOLT = 0
-        self.batCURR = 0
-        self.batPOW = 0
-        self.solarVOLT = 0
-        self.solarCURR = 0
-        self.solarPOW = 0
-        self.msg_log_battery = '[Battery] {}Voltage: {:.3f} V{}; {}Current: {:.3f} mA{}; Power: {:.3f} mW; Level: {} %; ETC: {}'
-        self.msg_log_solar = '[Solar]   {}Voltage: {:.3f} V{}; {}Current: {:.3f} mA{}; Power: {:.3f} mW; Level: {} %'
         # Workers
-        # self.timer.timeout.connect(self.refresh_menu)
+
         self.threadpool = QThreadPool()
         self.quit_thread = False
         if self.debug:
@@ -247,11 +239,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.setIcon(QIcon(bleico.__path__[0]+"/{}.png".format(self.esp32_device.appearance)))
 
     def autoset_icon(self, n):  # worker callback
-        # self.theme = darkdetect.theme()
-        # if int(datetime.now().strftime("%H")) < 20 and int(datetime.now().strftime("%H")) >= 8:
-        #     self.set_day_mode_ICON()
-        # if int(datetime.now().strftime("%H")) >= 20 or int(datetime.now().strftime("%H")) < 8:
-        #     self.set_dark_mode_ICON()
         if n == 1:
             self.set_dark_mode_ICON()
         else:
@@ -263,10 +250,6 @@ class SystemTrayIcon(QSystemTrayIcon):
                 break
             else:
                 self.theme = darkdetect.theme()
-                # if int(datetime.now().strftime("%H")) < 20 and int(datetime.now().strftime("%H")) >= 8:
-                #     self.set_day_mode_ICON()
-                # if int(datetime.now().strftime("%H")) >= 20 or int(datetime.now().strftime("%H")) < 8:
-                #     self.set_dark_mode_ICON()
                 if self.theme == 'Dark':
                     progress_callback.emit(1)
                 else:
@@ -297,41 +280,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         except Exception as e:
             if self.debug:
                 self.log.error(e)
-        # # text = random.choice(["Odyssey", "Time", "Space"])
-        # # Labels
-        #
-        # self.esp8266_device.wr_cmd(
-        #     'solar_data=[ina.voltage(),ina.current(),ina.power()];solar_data',
-        #     silent=True)
-        # try:
-        #     self.solarVOLT, self.solarCURR, self.solarPOW = self.esp8266_device.output
-        #     solar_lp = round((self.solarPOW/self.solar_spec)*100)
-        #
-        #     if self.solarCURR < self.dev_comsumption:
-        #         if self.solarVOLT < 4.3:
-        #             solarVolt = [CRED, self.solarVOLT, CEND]
-        #             solarCurr = ['', self.batCURR, '']
-        #         else:
-        #             solarVolt = [CGREEN, self.solarVOLT, CEND]
-        #             solarCurr = ['', self.solarCURR, '']
-        #     else:
-        #         if self.solarVOLT < 4.3:
-        #             solarVolt = [CRED, self.solarVOLT, CEND]
-        #             solarCurr = ['', self.solarCURR, '']
-        #         else:
-        #             solarVolt = [CGREEN, self.solarVOLT, CEND]
-        #             solarCurr = ['', self.solarCURR, '']
-        #     if args.debug:
-        #         self.log.info(self.msg_log_solar.format(*solarVolt, *solarCurr,
-        #                                                 self.solarPOW, solar_lp))
-        #     self.solar_label.setText('Solar: {:.0f} %'.format(solar_lp))
-        #     self.solar_voltData.setText("Voltage: {:.2f} V".format(self.solarVOLT))
-        #     self.solar_currData.setText("Current {:.2f} mA".format(self.solarCURR))
-        #     self.solar_PowerData.setText("Power: {:.2f} mW".format(self.solarPOW))
-        # except Exception as e:
-        #     if args.debug:
-        #         self.log.error(e)
-        # text = random.choice(["Odyssey", "Time", "Space"])
 
     def update_menu(self, progress_callback):
         while True:
@@ -405,9 +353,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         sys.exit()
 
 
-
-
 #############################################
+
+
 if '.upydevices' not in os.listdir("{}".format(os.environ['HOME'])):
     os.mkdir("{}/.upydevices".format(os.environ['HOME']))
 # Config device option
@@ -415,23 +363,25 @@ if args.m == 'config':
     if args.t is None:
         print('Target uuid required, see -t')
         sys.exit()
-    # upydev_uuid = args.t
-    # upy_conf = {'uuid': upydev_uuid, 'Dev_C': args.c,
-    #             'Bat_C': args.bat, 'Solar_sp': args.spow}
-    # file_conf = '{}/bleico_.config'.format(
-    #     "{}/.upydevices".format(os.environ['HOME']))
-    # with open(file_conf, 'w') as config_file:
-    #     config_file.write(json.dumps(upy_conf))
-    store_dev('bleico_', uuid=args.t, Dev_C=args.c, Bat_C=args.bat,
-              Solar_sp=args.spow)
+    store_dev('bleico_', uuid=args.t)
 
     print('bleblar device settings saved in upydevices directory!')
     sys.exit()
 
 if args.m == 'run':
 
+    banner = """
+$$$$$$$\  $$\       $$$$$$$$\ $$$$$$\  $$$$$$\   $$$$$$\\
+$$  __$$\ $$ |      $$  _____|\_$$  _|$$  __$$\ $$  __$$\\
+$$ |  $$ |$$ |      $$ |        $$ |  $$ /  \__|$$ /  $$ |
+$$$$$$$\ |$$ |      $$$$$\      $$ |  $$ |      $$ |  $$ |
+$$  __$$\ $$ |      $$  __|     $$ |  $$ |      $$ |  $$ |
+$$ |  $$ |$$ |      $$ |        $$ |  $$ |  $$\ $$ |  $$ |
+$$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
+\_______/ \________|\________|\______| \______/  \______/
+    """
     print('*'*60)
-    #print(BANNER)
+    print(banner)
     print('*'*60)
 
     config_file_name = 'bleico_.config'
@@ -452,15 +402,6 @@ if args.m == 'run':
         # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
         handlers=[handler])
     log = logging.getLogger('bleico')  # setup one logger per device
-    # log.setLevel(log_levels[args.dslev]) # MASTER LOG LEVEL
-    # # Filehandler for error
-    # fh_err = logging.FileHandler(''.join([filelog_path, 'weatpyfluxd_error.log']))
-    # fh_err.setLevel(log_levels[args.dflev])
-    # # Formatter for errors
-    # fmt_err = logging.Formatter(
-    #     "%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s")
-    # fh_err.setFormatter(fmt_err)
-    # log.addHandler(fh_err)
     log.info('Running bleico {}'.format(parser.version))
 
 
@@ -481,15 +422,8 @@ def main():
     else:
         icon = QIcon(bleico.__path__[0]+"/Bluelogo.png")
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
-                              device_coms=upy_conf['Dev_C'],
-                              battery_cap=upy_conf['Bat_C'],
-                              solar_spec=upy_conf['Solar_sp'],
                               logger=log, debug=args.debug)
     # Menu refresher
-    # timer = QTimer()
-    # timer.timeout.connect(trayIcon.refresh_menu)
-    # timer.start(1000)  # every 5 secs
-    # QTimer.singleShot(10, trayIcon.refresh_menu)  # refresh on open
     trayIcon.start_update_icon()
     trayIcon.start_update_menu()
 
