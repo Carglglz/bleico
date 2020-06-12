@@ -4,9 +4,10 @@ block_cipher = None
 
 
 a = Analysis(['bleico_app.py'],
-             pathex=['.'],
+             pathex=['/Users/carlosgilgonzalez/Desktop/IBM_PROJECTS/MICROPYTHON/TOOLS/UTILS/bleico/bleico_app'],
              binaries=[],
-             datas=[],
+             datas=[('HID_DIGITAL_PEN.png', '.'), ('bleicon.icns', '.'), ('bleico_dark.png', '.'), ('UNKNOWN.png', '.'), ('UNKNOWN_dark.png', '.'), ('HID_DIGITAL_PEN_dark.png', '.'), ('GENERIC_THERMOMETER_dark.png', '.'),
+ ('Bluelogo.png', '.'), ('Bluelogo_dark.png', '.'), ('GENERIC_THERMOMETER.png', '.'), ('BlueL.png', '.'), ('bleico.png', '.')],
              hiddenimports=[],
              hookspath=[],
              runtime_hooks=[],

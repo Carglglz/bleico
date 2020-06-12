@@ -6,7 +6,6 @@
 
 import logging
 import sys
-import bleico
 import os
 import argparse
 import json
