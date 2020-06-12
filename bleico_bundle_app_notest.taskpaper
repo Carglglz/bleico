@@ -1,0 +1,2 @@
+
+✔ pyinstaller -w -y -n bleico -i bleicon.icns --windowed bleico.spec @done(2020-06-12 01:27)
