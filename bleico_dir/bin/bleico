@@ -294,7 +294,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                     for char in self.esp32_device.readables.keys():
                         if char != 'Appearance' and char != 'Manufacturer Name String':
                             data[char] = (self.esp32_device.read_service(key=char,
-                                                                       data_fmt="f")[0])
+                                                                       data_fmt="<h")[0])
                     progress_callback.emit(data)
                 except Exception as e:
                     progress_callback.emit(False)
