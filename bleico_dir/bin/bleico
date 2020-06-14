@@ -196,8 +196,11 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.menu.addAction(serv)
             for char in self.esp32_device.services_rsum[key]:
                 if char == 'Appearance':
-                    self.char_actions_dict[char] = self.menu.addMenu("Appearance")
+                    self.char_actions_dict[char] = self.menu.addMenu(char)
                     self.char_actions_dict[char].addAction(self.esp32_device.appearance)
+                elif char == 'Manufacturer Name String':
+                    self.char_actions_dict[char] = self.menu.addMenu(char)
+                    self.char_actions_dict[char].addAction(self.esp32_device.manufacturer)
                 else:
                     self.char_actions_dict[char] = QAction("{}: ? ua".format(char))
                     self.menu.addAction(self.char_actions_dict[char])
@@ -289,7 +292,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 try:
                     data = {}
                     for char in self.esp32_device.readables.keys():
-                        if char != 'Appearance':
+                        if char != 'Appearance' and char != 'Manufacturer Name String':
                             data[char] = (self.esp32_device.read_service(key=char,
                                                                        data_fmt="f")[0])
                     progress_callback.emit(data)
