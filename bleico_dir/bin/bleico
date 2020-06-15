@@ -369,12 +369,13 @@ class SystemTrayIcon(QSystemTrayIcon):
         async def as_char_notify(notify_callback=readnotify_callback):
             aio_client_r, aio_client_w = await asyncio.open_connection('localhost', 8845)
             aio_client_w.write('Hello'.encode())
-
-            await asyncio.sleep(1)
-            data = await aio_client_r.read(100)
-            message = data.decode()
-            aio_client_w.write('echo: {}'.format(message).encode())
+            for i in range(10):
+                await asyncio.sleep(1)
+                data = await aio_client_r.read(100)
+                message = data.decode()
+                aio_client_w.write('echo: {}'.format(message).encode())
             await self.esp32_device.ble_client.start_notify(ble_char_dict_rev[self.char_to_notify], notify_callback)
+            await asyncio.sleep(30)
             await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
             aio_client_w.write('done'.encode())
             aio_client_w.close()
@@ -383,6 +384,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         n_loop = asyncio.new_event_loop()
         asyncio.set_event_loop(n_loop)
         n_loop.run_until_complete(as_char_notify())
+        progress_callback.emit(False)
 
     def start_notify_char(self):
         # Pass the function to execute
@@ -398,6 +400,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.log.info("Message from thread: {}".format(self.main_server.recv_message()))
         self.main_server.send_message("Hello client")
         self.log.info("Message from thread: {}".format(self.main_server.recv_message()))
+        for i in range(10):
+            self.main_server.send_message("Hello client")
+            self.log.info("Message from thread: {}".format(self.main_server.recv_message()))
 
     def notify(self, typemessage, message):
         """Generate a desktop notification"""
@@ -436,9 +441,9 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.log.info('Closing now...')
             self.log.info('Done!')
             self.log.info('Shutdown pending tasks...')
-        self.main_server.send_message('exit')
+        # self.main_server.send_message('exit')
         self.quit_thread = True
-        wait_for_notify_thread = self.main_server.recv_message()
+        self.main_server.serv_soc.close()
         self.log.info("{}".format(self.esp32_device.loop.is_running()))
         if self.esp32_device.loop.is_running():
             self.shutdown(self.esp32_device.loop)
