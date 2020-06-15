@@ -8,15 +8,17 @@
 import logging
 import sys
 import bleico
+from bleico.socket_client_server import socket_client, socket_server
 import os
 import argparse
 import json
 from binascii import hexlify
 from upydevice import BLE_DEVICE
-from upydevice.chars import ble_char_dict
+from upydevice.chars import ble_char_dict, ble_char_dict_rev
 from upydevice.devtools import store_dev, load_dev
 import datetime
 import time
+import struct
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QSplashScreen
 from PyQt5.QtCore import QTimer, QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot, Qt
@@ -24,6 +26,7 @@ from argcomplete.completers import ChoicesCompleter
 import traceback
 import darkdetect
 import asyncio
+
 
 # TODO: DEVICE STATE, LAST UPDATE
 helparg = '''Mode:
@@ -191,6 +194,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.serv_actions_dict = {serv: QAction(serv) for serv in self.esp32_device.services_rsum.keys()}
         self.serv_separator_dict = {}
         self.char_actions_dict = {}
+        self.notify_char_menu_dict = {}
+        self.notify_char_actions_dict = {}
         for key, serv in self.serv_actions_dict.items():
             serv.setEnabled(False)
             self.menu.addAction(serv)
@@ -210,8 +215,14 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.separator_etc = QAction()
         self.separator_etc.setSeparator(True)
         self.menu.addAction(self.separator_etc)
-        self.solar_label = QAction(QIcon(bleico.__path__[0]+"/bleico_dark.png"), "BLE")
-        self.menu.addAction(self.solar_label)
+        self.notifiable_label = QAction("Notify")
+        self.notifiable_label.setEnabled(False)
+        self.menu.addAction(self.notifiable_label)
+        for char in self.esp32_device.notifiables.keys():
+            self.notify_char_menu_dict[char] = self.menu.addMenu(char)
+            self.notify_char_actions_dict[char] = self.notify_char_menu_dict[char].addAction('Notify')
+            self.notify_char_actions_dict[char].triggered.connect(self.check_which_triggered)
+            # here trigger action --> set flag notify True, start Thread, callback notify ...
         self.separator_exit = QAction()
         self.separator_exit.setSeparator(True)
         self.menu.addAction(self.separator_exit)
@@ -223,9 +234,9 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         self.uuid_label.setText('{}'.format(self.esp32_device.UUID))
         # Workers
-
         self.threadpool = QThreadPool()
         self.quit_thread = False
+        self.main_server = socket_server(8845)
         if self.debug:
             self.log.info("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
 
@@ -234,6 +245,18 @@ class SystemTrayIcon(QSystemTrayIcon):
                                                         self.esp32_device.UUID))
         self.splash.clearMessage()
         self.splash.close()
+
+        # NOTIFIABLE
+        self.char_to_notify = None
+
+    def check_which_triggered(self, checked):
+        action = self.sender()
+        for char in self.notify_char_actions_dict.keys():
+            if action == self.notify_char_actions_dict[char]:
+                self.log.info("Char: {} notify clicked".format(char))
+                self.char_to_notify = char
+                self.start_notify_char()
+            # Here
 
     def set_dark_mode_ICON(self):
         self.setIcon(QIcon(bleico.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
@@ -275,16 +298,19 @@ class SystemTrayIcon(QSystemTrayIcon):
         data = response
         try:
             for char in data.keys():
-                self.char_actions_dict[char].setText("{}: {:.2f} ua".format(char, data[char]))
+                if self.esp32_device.chars_xml[char].dec_exp is not None:
+                    data[char] = data[char]*10**(self.esp32_device.chars_xml[char].dec_exp)
+
+                self.char_actions_dict[char].setText("{}: {} {}".format(char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
                 if self.debug:
                     for serv in self.esp32_device.services_rsum.keys():
                         if char in self.esp32_device.services_rsum[serv]:
-                            self.log.info("{} [{}] : {:.2f} ua".format(serv, char, data[char]))
+                            self.log.info("{} [{}] : {} {}".format(serv, char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
         except Exception as e:
             if self.debug:
                 self.log.error(e)
 
-    def update_menu(self, progress_callback):
+    def update_menu(self, progress_callback):  # define the notify callback inside that takes progress_callback as variable
         while True:
             if self.quit_thread:
                 break
@@ -292,9 +318,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                 try:
                     data = {}
                     for char in self.esp32_device.readables.keys():
-                        if char != 'Appearance' and char != 'Manufacturer Name String':
+                        if char != 'Appearance' and char != 'Manufacturer Name String' and char != self.char_to_notify:
                             data[char] = (self.esp32_device.read_service(key=char,
-                                                                       data_fmt="<h")[0])
+                                                                       data_fmt=self.esp32_device.chars_xml[char].fmt)[0])
                     progress_callback.emit(data)
                 except Exception as e:
                     progress_callback.emit(False)
@@ -310,6 +336,75 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         # Execute
         self.threadpool.start(worker_menu)
+
+    def receive_notification(self, response):
+
+        data = response
+        try:
+            for char in data.keys():
+                if self.esp32_device.chars_xml[char].dec_exp is not None:
+                    data[char] = data[char]*10**(self.esp32_device.chars_xml[char].dec_exp)
+
+                self.char_actions_dict[char].setText("{}: {} {}".format(char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
+                for serv in self.esp32_device.services_rsum.keys():
+                    if char in self.esp32_device.services_rsum[serv]:
+                        nservice = serv
+                self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {} {}".format(char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
+                if self.debug:
+                    for serv in self.esp32_device.services_rsum.keys():
+                        if char in self.esp32_device.services_rsum[serv]:
+                            self.log.info("Notification: {} [{}] : {} {}".format(serv, char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
+        except Exception as e:
+            if self.debug:
+                self.log.error(e)
+
+    def subscribe_notify(self, progress_callback):  # run in thread
+
+        def readnotify_callback(sender, data, callb=progress_callback):
+            char = ble_char_dict[sender]
+            fmt_data = struct.unpack(self.esp32_device.chars_xml[char].fmt, data)[0]
+            data_dict = {char: fmt_data}
+            callb.emit(data_dict)
+
+        async def as_char_notify(notify_callback=readnotify_callback):
+            aio_client_r, aio_client_w = await asyncio.open_connection('localhost', 8845)
+            aio_client_w.write('Hello'.encode())
+
+            await asyncio.sleep(1)
+            data = await aio_client_r.read(100)
+            message = data.decode()
+            aio_client_w.write('echo: {}'.format(message).encode())
+            await self.esp32_device.ble_client.start_notify(ble_char_dict_rev[self.char_to_notify], notify_callback)
+            await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
+            aio_client_w.write('done'.encode())
+            aio_client_w.close()
+
+        # GET NEW EVENT LOOP AND RUN
+        n_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(n_loop)
+        n_loop.run_until_complete(as_char_notify())
+
+    def start_notify_char(self):
+        # Pass the function to execute
+        worker_notify = Worker(self.subscribe_notify) # Any other args, kwargs are passed to the run function
+        # worker.signals.result.connect(self.print_output)
+        # worker.signals.finished.connect(self.thread_complete)
+        # worker.signals.progress.connect(self.progress_fn)
+        worker_notify.signals.progress.connect(self.receive_notification)
+
+        # Execute
+        self.threadpool.start(worker_notify)
+        self.main_server.start_SOC()
+        self.log.info("Message from thread: {}".format(self.main_server.recv_message()))
+        self.main_server.send_message("Hello client")
+        self.log.info("Message from thread: {}".format(self.main_server.recv_message()))
+
+    def notify(self, typemessage, message):
+        """Generate a desktop notification"""
+        self.showMessage(typemessage,
+                         message,
+                         QSystemTrayIcon.Warning,
+                         60*60000)
 
     def shutdown(self, loop):
         # self.log.info("Shutdown...")
@@ -341,7 +436,9 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.log.info('Closing now...')
             self.log.info('Done!')
             self.log.info('Shutdown pending tasks...')
+        self.main_server.send_message('exit')
         self.quit_thread = True
+        wait_for_notify_thread = self.main_server.recv_message()
         self.log.info("{}".format(self.esp32_device.loop.is_running()))
         if self.esp32_device.loop.is_running():
             self.shutdown(self.esp32_device.loop)
