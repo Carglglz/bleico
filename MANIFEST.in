@@ -13,3 +13,4 @@ include bleico/UNKNOWN.png
 include bleico/BlueL.png
 include bleico/GENERIC_THERMOMETER.png
 include bleico/GENERIC_THERMOMETER_dark.png
+include bleico/GENERIC*.png
