@@ -216,7 +216,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                     if char == 'Battery Power State':
                         self.char_actions_dict[char] = self.menu.addMenu(char)
                         for value in self.esp32_device.batt_power_state.values():
-                            self.char_actions_dict[char].addAction(value)
+                            self.char_actions_dict[char].addAction(value)  # store actions in dict to update
                     else:
                         self.char_actions_dict[char] = self.menu.addMenu(char)
                         self.char_actions_dict[char].addAction(self.esp32_device.device_info[char])
