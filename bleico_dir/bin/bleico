@@ -489,7 +489,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         # Execute
         # self.threadpool.start(worker_notify)
         self.main_server = socket_server(8845)
-        self.port = self.main_server.get_free_port()
+        self.port = self.main_server.get_free_port() # start stop multiple chars to notify
         self.threadpool.start(worker_notify)
         self.main_server.start_SOC()
         self.log.info("NOTIFY_THREAD: {}".format(self.main_server.recv_message()))
