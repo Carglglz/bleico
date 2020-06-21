@@ -208,6 +208,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.char_actions_dict = {}
         self.notify_char_menu_dict = {}
         self.notify_char_actions_dict = {}
+        self.battery_power_state_actions_dict = {}
         for key, serv in self.serv_actions_dict.items():
             serv.setEnabled(False)
             self.menu.addAction(serv)
@@ -215,8 +216,8 @@ class SystemTrayIcon(QSystemTrayIcon):
                 if char in self.avoid_chars:
                     if char == 'Battery Power State':
                         self.char_actions_dict[char] = self.menu.addMenu(char)
-                        for value in self.esp32_device.batt_power_state.values():
-                            self.char_actions_dict[char].addAction(value)  # store actions in dict to update
+                        for state, value in self.esp32_device.batt_power_state.items():
+                            self.battery_power_state_actions_dict[state]=self.char_actions_dict[char].addAction("{}: {}".format(state,value))  # store actions in dict to update
                     else:
                         self.char_actions_dict[char] = self.menu.addMenu(char)
                         self.char_actions_dict[char].addAction(self.esp32_device.device_info[char])
@@ -406,6 +407,8 @@ class SystemTrayIcon(QSystemTrayIcon):
                                 self.log.info("Notification: {} [{}] : {} {}".format(serv, char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
                 else:
                     self.esp32_device.unpack_batt_power_state(data[char])
+                    for state, value in self.esp32_device.batt_power_state.items():
+                        self.battery_power_state_actions_dict[state].setText("{}: {}".format(state, value))
                     for serv in self.esp32_device.services_rsum.keys():
                         if char in self.esp32_device.services_rsum[serv]:
                             nservice = serv
@@ -433,12 +436,15 @@ class SystemTrayIcon(QSystemTrayIcon):
                 ufmt = None
             if ufmt is None or ufmt in self.special_formats:
                 ufmt = 'B'
-            fmt_data, = struct.unpack(ufmt, data)  # here bledevice function to handle proper data unpacking
-            data_dict = {char: fmt_data}
-            callb.emit(data_dict)
+            try:
+                fmt_data, = struct.unpack(ufmt, data)  # here bledevice function to handle proper data unpacking
+                data_dict = {char: fmt_data}
+                callb.emit(data_dict)
+            except Exception as e:
+                self.log.error(e)
 
         async def as_char_notify(notify_callback=readnotify_callback):
-            aio_client_r, aio_client_w = await asyncio.open_connection('localhost', 8845)
+            aio_client_r, aio_client_w = await asyncio.open_connection('localhost', self.port)
             aio_client_w.write('started'.encode())
             await self.esp32_device.ble_client.start_notify(ble_char_dict_rev[self.char_to_notify], notify_callback)
             await asyncio.sleep(1)
@@ -481,8 +487,10 @@ class SystemTrayIcon(QSystemTrayIcon):
         worker_notify.signals.progress.connect(self.receive_notification)
 
         # Execute
-        self.threadpool.start(worker_notify)
+        # self.threadpool.start(worker_notify)
         self.main_server = socket_server(8845)
+        self.port = self.main_server.get_free_port()
+        self.threadpool.start(worker_notify)
         self.main_server.start_SOC()
         self.log.info("NOTIFY_THREAD: {}".format(self.main_server.recv_message()))
 

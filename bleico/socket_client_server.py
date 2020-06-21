@@ -51,8 +51,16 @@ class socket_server:
         self.conn = None
         self.addr_client = None
 
+    def get_free_port(self):
+        while True:
+            try:
+                self.serv_soc.bind((self.host, self.port))
+                break
+            except Exception as e:
+                self.port += 1
+        return self.port
+
     def start_SOC(self):
-        self.serv_soc.bind((self.host, self.port))
         self.serv_soc.listen(1)
         print('Server listening...')
         self.conn, self.addr_client = self.serv_soc.accept()
