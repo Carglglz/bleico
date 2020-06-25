@@ -290,6 +290,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                     self.stop_notify_thread()
                     action.setText('Notify')
                     self.notify_is_on = False
+                    # self.char_to_notify = None
                     # action.triggered.connect(self.check_which_triggered)
             # Here
 
@@ -458,6 +459,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
                 aio_client_w.close()
                 self.log.info('NOTIFY_THREAD: {}'.format("Done!"))
+                self.char_to_notify = None
 
         # async def unsubscribe_char():
         #     self.log.info('NOTIFY_THREAD: {}'.format("Stopping notification now..."))
@@ -592,7 +594,7 @@ if args.m == 'config':
         sys.exit()
     store_dev('bleico_', uuid=args.t)
 
-    print('bleblar device settings saved in upydevices directory!')
+    print('bleico device settings saved in upydevices directory!')
     sys.exit()
 
 if args.m == 'run':
@@ -638,10 +640,13 @@ def main():
 
     # Open upydevice configuration
     if device_is_configurated:
-        upy_conf = load_dev('bleico_')
-        if upy_conf is None:
-            log.error("CONFIGURATION FILE NOT FOUND")
-            sys.exit()
+        if args.t is None:
+            upy_conf = load_dev('bleico_')
+            if upy_conf is None:
+                log.error("CONFIGURATION FILE NOT FOUND")
+                sys.exit()
+        else:
+            upy_conf = {'uuid': args.t}
 
     # Create the icon
 
