@@ -330,7 +330,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def refresh_menu(self, response):
 
-        # data = self.esp32_device.read_service(key='Environmental Sensing', data_fmt="f")[0]
+        # data = self.esp32_device.read_char(key='Environmental Sensing', data_fmt="f")[0]
         data = response
         if data == 'finished':
             self.log.info("MENU CALLBACK: THREAD FINISH RECEIVED")
@@ -364,7 +364,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                             if self.quit_thread:
                                 break
                             else:
-                                data[char] = (self.esp32_device.read_service(key=char,
+                                data[char] = (self.esp32_device.read_char(key=char,
                                                                            data_fmt=self.esp32_device.chars_xml[char].fmt))
                     progress_callback.emit(data)
                 except Exception as e:

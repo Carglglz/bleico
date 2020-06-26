@@ -258,7 +258,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def refresh_menu(self, response):
 
-        # data = self.esp32_device.read_service(key='Environmental Sensing', data_fmt="f")[0]
+        # data = self.esp32_device.read_char(key='Environmental Sensing', data_fmt="f")[0]
         data = response
         try:
             for char in data.keys():
@@ -315,7 +315,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                     data = {}
                     for char in self.esp32_device.readables.keys():
                         if char != 'Appearance':
-                            data[char] = (self.esp32_device.read_service(key=char,
+                            data[char] = (self.esp32_device.read_char(key=char,
                                                                        data_fmt="f")[0])
                     progress_callback.emit(data)
                 except Exception as e:
