@@ -142,13 +142,13 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.log = logger
         # SPLASH SCREEN
         # Splash Screen
-        self.splash_pix = QPixmap(SRC_PATH+"/blewiz_logo.png", 'PNG')
+        self.splash_pix = QPixmap(SRC_PATH+"/bleico.png", 'PNG')
         self.scaled_splash = self.splash_pix.scaled(512, 512, Qt.KeepAspectRatio, transformMode = Qt.SmoothTransformation)
         self.splash = QSplashScreen(self.scaled_splash, Qt.WindowStaysOnTopHint)
         self.splash.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.splash.setEnabled(False)
         self.splash.show()
-        self.splash.showMessage("Scanning for device...", Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
+        self.splash.showMessage("Scanning for device...", Qt.AlignCenter, Qt.black)
         # Upydevice
         self.esp32_device = BLE_DEVICE(device_uuid, init=True)
         while not self.esp32_device.connected:
@@ -163,7 +163,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.app_icon.setIsMask(True)
         self.setIcon(self.app_icon)
         self.splash.showMessage("Device {} found".format(self.esp32_device.name),
-                                Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
+                                Qt.AlignCenter, Qt.black)
         self.menu = QMenu(parent)
         # DEVICE INFO
         self.device_label = QAction("Device: ?")
@@ -211,24 +211,31 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.notify_char_actions_dict = {}
         self.battery_power_state_actions_dict = {}
         for key, serv in self.serv_actions_dict.items():
-            serv.setEnabled(False)
-            self.menu.addAction(serv)
-            for char in self.esp32_device.services_rsum[key]:
-                if char in self.avoid_chars:
-                    if char == 'Battery Power State':
-                        self.char_actions_dict[char] = self.menu.addMenu(char)
-                        for state, value in self.esp32_device.batt_power_state.items():
-                            self.battery_power_state_actions_dict[state]=self.char_actions_dict[char].addAction("{}: {}".format(state,value))  # store actions in dict to update
+            if key == 'Device Information':
+                self.devinfo_menu = self.menu.addMenu(key)
+                for char in self.esp32_device.services_rsum[key]:
+                    self.char_actions_dict[char] = self.devinfo_menu.addAction("{}: {}".format(char.replace('String', ''), self.esp32_device.device_info[char]))
+                    self.char_actions_dict[char].setEnabled(False)
+                self.menu.addSeparator()
+            else:
+                serv.setEnabled(False)
+                self.menu.addAction(serv)
+                for char in self.esp32_device.services_rsum[key]:
+                    if char in self.avoid_chars:
+                        if char == 'Battery Power State':
+                            self.char_actions_dict[char] = self.menu.addMenu(char)
+                            for state, value in self.esp32_device.batt_power_state.items():
+                                self.battery_power_state_actions_dict[state]=self.char_actions_dict[char].addAction("{}: {}".format(state,value))  # store actions in dict to update
+                        else:
+                            self.char_actions_dict[char] = self.menu.addMenu(char)
+                            self.char_actions_dict[char].addAction(self.esp32_device.device_info[char])
                     else:
-                        self.char_actions_dict[char] = self.menu.addMenu(char)
-                        self.char_actions_dict[char].addAction(self.esp32_device.device_info[char])
-                else:
-                    # HERE DIVIDE CHARS INTO SINGLE/FEATURES/MULTIPLE, READ CHAR --> CLASSIFY [A,B,C...]
-                    self.char_actions_dict[char] = QAction("{}: ? ua".format(char))
-                    self.menu.addAction(self.char_actions_dict[char])
-            self.serv_separator_dict[key] = QAction()
-            self.serv_separator_dict[key].setSeparator(True)
-            self.menu.addAction(self.serv_separator_dict[key])
+                        # HERE DIVIDE CHARS INTO SINGLE/FEATURES/MULTIPLE, READ CHAR --> CLASSIFY [A,B,C...]
+                        self.char_actions_dict[char] = QAction("{}: ? ua".format(char))
+                        self.menu.addAction(self.char_actions_dict[char])
+                self.serv_separator_dict[key] = QAction()
+                self.serv_separator_dict[key].setSeparator(True)
+                self.menu.addAction(self.serv_separator_dict[key])
         self.separator_etc = QAction()
         self.separator_etc.setSeparator(True)
         self.menu.addAction(self.separator_etc)
