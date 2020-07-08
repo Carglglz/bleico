@@ -142,7 +142,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.log = logger
         # SPLASH SCREEN
         # Splash Screen
-        self.splash_pix = QPixmap(SRC_PATH+"/BlueL.png", 'PNG')
+        self.splash_pix = QPixmap(SRC_PATH+"/blewiz_logo.png", 'PNG')
         self.scaled_splash = self.splash_pix.scaled(512, 512, Qt.KeepAspectRatio, transformMode = Qt.SmoothTransformation)
         self.splash = QSplashScreen(self.scaled_splash, Qt.WindowStaysOnTopHint)
         self.splash.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
@@ -655,7 +655,7 @@ def main():
 
     # Create the icon
 
-    icon = QIcon(SRC_PATH+"/Bluelogo.png")
+    icon = QIcon(SRC_PATH+"/UNKNOWN.png")
     icon.setIsMask(True)
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
                               logger=log, debug=args.debug)
