@@ -379,8 +379,9 @@ class SystemTrayIcon(QSystemTrayIcon):
 
 
 config_file_name = 'bleico_.config'
-config_file_path = "{}/.upydevices".format(os.environ['HOME'])
+config_file_path = "{}/.blewiz".format(os.environ['HOME'])
 device_is_configurated = config_file_name in os.listdir(config_file_path)
+
 # Logging Setup
 
 # filelog_path = "{}/.upydevices_logs/weatpyfluxd_logs/".format(
@@ -414,7 +415,7 @@ def main():
 
     # Open upydevice configuration
     if device_is_configurated:
-        upy_conf = load_dev('bleico_')
+        upy_conf = load_dev('bleico_', dir=config_file_path)
         if upy_conf is None:
             log.error("CONFIGURATION FILE NOT FOUND")
             sys.exit()

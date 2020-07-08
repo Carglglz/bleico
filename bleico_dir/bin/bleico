@@ -9,6 +9,7 @@ import logging
 import sys
 import bleico
 from bleico.socket_client_server import socket_client, socket_server
+from bleak.backends.corebluetooth.utils import cb_uuid_to_str
 import os
 import argparse
 import json
@@ -150,15 +151,15 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.splash.showMessage("Scanning for device...", Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         # Upydevice
         self.esp32_device = BLE_DEVICE(device_uuid, init=True)
-        while not self.esp32_device.is_connected():
+        while not self.esp32_device.connected:
             self.esp32_device = BLE_DEVICE(device_uuid, init=True)
             time.sleep(2)
         self.splash.clearMessage()
         # Create the menu
-        if "{}.png".format(self.esp32_device.appearance) not in os.listdir(SRC_PATH):
+        if "{}.png".format(self.esp32_device.appearance_tag) not in os.listdir(SRC_PATH):
             self.app_icon = QIcon(SRC_PATH+"/UNKNOWN.png")
         else:
-            self.app_icon = QIcon(SRC_PATH+"/{}.png".format(self.esp32_device.appearance))
+            self.app_icon = QIcon(SRC_PATH+"/{}.png".format(self.esp32_device.appearance_tag))
         self.app_icon.setIsMask(True)
         self.setIcon(self.app_icon)
         self.splash.showMessage("Device {} found".format(self.esp32_device.name),
@@ -222,6 +223,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                         self.char_actions_dict[char] = self.menu.addMenu(char)
                         self.char_actions_dict[char].addAction(self.esp32_device.device_info[char])
                 else:
+                    # HERE DIVIDE CHARS INTO SINGLE/FEATURES/MULTIPLE, READ CHAR --> CLASSIFY [A,B,C...]
                     self.char_actions_dict[char] = QAction("{}: ? ua".format(char))
                     self.menu.addAction(self.char_actions_dict[char])
             self.serv_separator_dict[key] = QAction()
@@ -338,14 +340,21 @@ class SystemTrayIcon(QSystemTrayIcon):
         else:
             try:
                 for char in data.keys():
-                    if self.esp32_device.chars_xml[char].dec_exp is not None:
-                        data[char] = data[char]*10**(self.esp32_device.chars_xml[char].dec_exp)
+                    # HANDLE SINGLE VALUES
+                    char_text = self.esp32_device.pformat_char_value(data[char],
+                                                                     char=char,
+                                                                     rtn=True,
+                                                                     prnt=False,
+                                                                     one_line=True,
+                                                                     only_val=True)
 
-                    self.char_actions_dict[char].setText("{}: {} {}".format(char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
+                    self.char_actions_dict[char].setText(char_text)
                     if self.debug:
                         for serv in self.esp32_device.services_rsum.keys():
                             if char in self.esp32_device.services_rsum[serv]:
-                                self.log.info("{} [{}] : {} {}".format(serv, char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
+                                self.log.info("[{}] {}".format(serv, char_text))
+                    # TODO: HANDLE BITFLAGS
+                    # TODO: HANDLE MULTIPLE VALUES
             except Exception as e:
                 if self.debug:
                     self.log.error(e)
@@ -364,8 +373,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                             if self.quit_thread:
                                 break
                             else:
-                                data[char] = (self.esp32_device.read_char(key=char,
-                                                                           data_fmt=self.esp32_device.chars_xml[char].fmt))
+                                data[char] = (self.esp32_device.get_char_value(char))
                     progress_callback.emit(data)
                 except Exception as e:
                     progress_callback.emit(False)
@@ -407,7 +415,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                             if char in self.esp32_device.services_rsum[serv]:
                                 self.log.info("Notification: {} [{}] : {} {}".format(serv, char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
                 else:
-                    self.esp32_device.unpack_batt_power_state(data[char])
+                    data = list(self.esp32_device._autoformat(self.esp32_device.chars_xml[char], data[char]).values())[0]
+                    self.esp32_device.batt_power_state = self.esp32_device.map_powstate(data)
+                    # self.esp32_device.unpack_batt_power_state(data[char])
                     for state, value in self.esp32_device.batt_power_state.items():
                         self.battery_power_state_actions_dict[state].setText("{}: {}".format(state, value))
                     for serv in self.esp32_device.services_rsum.keys():
@@ -429,17 +439,10 @@ class SystemTrayIcon(QSystemTrayIcon):
     def subscribe_notify(self, progress_callback):  # run in thread
 
         def readnotify_callback(sender, data, callb=progress_callback):
-            char = ble_char_dict[sender]
+
+            char = ble_char_dict[cb_uuid_to_str(sender)]
             try:
-                ufmt = self.esp32_device.chars_xml[char].fmt
-                self.log.info(ufmt)
-            except Exception as e:
-                ufmt = None
-            if ufmt is None or ufmt in self.special_formats:
-                ufmt = 'B'
-            try:
-                fmt_data, = struct.unpack(ufmt, data)  # here bledevice function to handle proper data unpacking
-                data_dict = {char: fmt_data}
+                data_dict = {char: data}
                 callb.emit(data_dict)
             except Exception as e:
                 self.log.error(e)
@@ -447,6 +450,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         async def as_char_notify(notify_callback=readnotify_callback):
             aio_client_r, aio_client_w = await asyncio.open_connection('localhost', self.port)
             aio_client_w.write('started'.encode())
+            # for char in self.esp32_device.notifiables.keys():
             await self.esp32_device.ble_client.start_notify(ble_char_dict_rev[self.char_to_notify], notify_callback)
             await asyncio.sleep(1)
             data = await aio_client_r.read(1024)
@@ -456,6 +460,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 # await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
                 aio_client_w.write('ok'.encode())
                 self.log.info('NOTIFY_THREAD: {}'.format("Stopping notification now..."))
+                # for char in self.esp32_device.notifiables.keys():
                 await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
                 aio_client_w.close()
                 self.log.info('NOTIFY_THREAD: {}'.format("Done!"))
@@ -614,7 +619,7 @@ $$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
     print('*'*60)
 
     config_file_name = 'bleico_.config'
-    config_file_path = "{}/.upydevices".format(os.environ['HOME'])
+    config_file_path = "{}/.blewiz".format(os.environ['HOME'])
     device_is_configurated = config_file_name in os.listdir(config_file_path)
     # Logging Setup
 
@@ -641,7 +646,7 @@ def main():
     # Open upydevice configuration
     if device_is_configurated:
         if args.t is None:
-            upy_conf = load_dev('bleico_')
+            upy_conf = load_dev('bleico_', dir=config_file_path)
             if upy_conf is None:
                 log.error("CONFIGURATION FILE NOT FOUND")
                 sys.exit()
