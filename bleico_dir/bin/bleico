@@ -10,6 +10,7 @@ import sys
 import bleico
 from bleico.socket_client_server import socket_client, socket_server
 from bleak.backends.corebluetooth.utils import cb_uuid_to_str
+from bleak.utils import get_char_value, pformat_char_value
 import os
 import argparse
 import json
@@ -65,6 +66,7 @@ parser.add_argument('-dslev',
 args = parser.parse_args()
 
 SRC_PATH = bleico.__path__[0]
+
 
 # THREAD WORKERS
 class WorkerSignals(QObject):
@@ -260,7 +262,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         # Workers
         self.threadpool = QThreadPool()
         self.quit_thread = False
-        self.main_server = socket_server(8845)
+        self.main_server = None
         if self.debug:
             self.log.info("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
 
@@ -272,6 +274,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         # NOTIFIABLE
         self.char_to_notify = None
+        self.chars_to_notify = []
         self.notify_is_on = False
         # self.notify_loop = None
         self.notify_loop = asyncio.new_event_loop()
@@ -287,18 +290,25 @@ class SystemTrayIcon(QSystemTrayIcon):
         action = self.sender()
         for char in self.notify_char_actions_dict.keys():
             if action == self.notify_char_actions_dict[char]:
-                if not self.notify_is_on:
+                if char not in self.chars_to_notify:
                     self.log.info("Char: {} Notification Enabled".format(char))
                     self.char_to_notify = char
+                    # for char in self.esp32_device.notifiables.keys():
+                    self.chars_to_notify.append(char)
                     action.setText('Stop Notification')
                     # action.triggered.connect(self.check_which_triggered) # stop notify Thread
-                    self.start_notify_char()
-                    self.notify_is_on = True
+                    if self.main_server:
+                        self.main_server.send_message("start:{}".format(char))
+                    else:
+                        self.start_notify_char()
+                        self.notify_is_on = True
                 else:
                     self.log.info("Char: {} Notification Disabled".format(char))
-                    self.stop_notify_thread()
+                    self.chars_to_notify.remove(char)
+                    self.main_server.send_message("stop:{}".format(char))
+                    # self.stop_notify_thread()
                     action.setText('Notify')
-                    self.notify_is_on = False
+                    # self.notify_is_on = False
                     # self.char_to_notify = None
                     # action.triggered.connect(self.check_which_triggered)
             # Here
@@ -374,7 +384,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 try:
                     data = {}
                     for char in self.esp32_device.readables.keys():
-                        if char not in self.avoid_chars and char != self.char_to_notify:
+                        if char not in self.avoid_chars and char not in self.chars_to_notify:
                             if self.esp32_device.chars_xml[char].fmt is None:
                                 self.esp32_device.chars_xml[char].fmt = 'B'
                             if self.quit_thread:
@@ -408,22 +418,29 @@ class SystemTrayIcon(QSystemTrayIcon):
         try:
             for char in data.keys():
                 if char != 'Battery Power State':
-                    if self.esp32_device.chars_xml[char].dec_exp is not None:
-                        data[char] = data[char]*10**(self.esp32_device.chars_xml[char].dec_exp)
-
-                    self.char_actions_dict[char].setText("{}: {} {}".format(char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
+                    # if self.esp32_device.chars_xml[char].dec_exp is not None:
+                    #     data[char] = data[char]*10**(self.esp32_device.chars_xml[char].dec_exp)
+                    data_value = get_char_value(data[char], self.esp32_device.chars_xml[char])
+                    data_value_string = pformat_char_value(data_value,
+                                                           rtn=True,
+                                                           prnt=False,
+                                                           one_line=True,
+                                                           only_val=True)
+                    self.char_actions_dict[char].setText(
+                        "{}: {}".format(char, data_value_string))
                     for serv in self.esp32_device.services_rsum.keys():
                         if char in self.esp32_device.services_rsum[serv]:
                             nservice = serv
-                    self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {} {}".format(char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
+                    self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {}".format(
+                        char, data_value_string))
 
                     if self.debug:
                         for serv in self.esp32_device.services_rsum.keys():
                             if char in self.esp32_device.services_rsum[serv]:
-                                self.log.info("Notification: {} [{}] : {} {}".format(serv, char, data[char], self.esp32_device.chars_xml[char].unit_symbol))
+                                self.log.info("Notification: {} [{}] : {}".format(serv, char, data_value_string))
                 else:
-                    data = list(self.esp32_device._autoformat(self.esp32_device.chars_xml[char], data[char]).values())[0]
-                    self.esp32_device.batt_power_state = self.esp32_device.map_powstate(data)
+                    data_value = get_char_value(data[char], self.esp32_device.chars_xml[char])
+                    self.esp32_device.batt_power_state = self.esp32_device.map_powstate(data_value['State']['Value'])
                     # self.esp32_device.unpack_batt_power_state(data[char])
                     for state, value in self.esp32_device.batt_power_state.items():
                         self.battery_power_state_actions_dict[state].setText("{}: {}".format(state, value))
@@ -457,21 +474,30 @@ class SystemTrayIcon(QSystemTrayIcon):
         async def as_char_notify(notify_callback=readnotify_callback):
             aio_client_r, aio_client_w = await asyncio.open_connection('localhost', self.port)
             aio_client_w.write('started'.encode())
-            # for char in self.esp32_device.notifiables.keys():
-            await self.esp32_device.ble_client.start_notify(ble_char_dict_rev[self.char_to_notify], notify_callback)
+            for char in self.chars_to_notify:
+                await self.esp32_device.ble_client.start_notify(ble_char_dict_rev[char], notify_callback)
             await asyncio.sleep(1)
-            data = await aio_client_r.read(1024)
-            message = data.decode()
-            self.log.info('NOTIFY_THREAD: {}'.format(message))
-            if message == 'exit':
-                # await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
-                aio_client_w.write('ok'.encode())
-                self.log.info('NOTIFY_THREAD: {}'.format("Stopping notification now..."))
-                # for char in self.esp32_device.notifiables.keys():
-                await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
-                aio_client_w.close()
-                self.log.info('NOTIFY_THREAD: {}'.format("Done!"))
-                self.char_to_notify = None
+            while True:
+                data = await aio_client_r.read(1024)
+                message = data.decode()
+                self.log.info('NOTIFY_THREAD: {}'.format(message))
+                if message == 'exit':
+                    # await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
+                    aio_client_w.write('ok'.encode())
+                    self.log.info('NOTIFY_THREAD: {}'.format("Stopping notification now..."))
+                    for char in self.chars_to_notify:
+                        await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[char])
+                    aio_client_w.close()
+                    self.log.info('NOTIFY_THREAD: {}'.format("Done!"))
+                    self.char_to_notify = None
+                    break
+                else:
+                    action, char = message.split(':')
+                    if action == 'start':
+                        await self.esp32_device.ble_client.start_notify(ble_char_dict_rev[char], notify_callback)
+                    if action == 'stop':
+                        await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[char])
+                    await asyncio.sleep(1)
 
         # async def unsubscribe_char():
         #     self.log.info('NOTIFY_THREAD: {}'.format("Stopping notification now..."))
