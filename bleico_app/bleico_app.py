@@ -146,7 +146,7 @@ class Worker(QRunnable):
 
 class SystemTrayIcon(QSystemTrayIcon):
     def __init__(self, icon, parent=None, device_uuid=None,
-                 logger=None, debug=False, max_tries=5):
+                 logger=None, debug=False, max_tries=1):
         QSystemTrayIcon.__init__(self, icon, parent)
         self.debug = debug
         self.log = logger
@@ -173,7 +173,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 self.splash.clearMessage()
                 self.splash.showMessage("Device {} not found".format(device_uuid),
                                         Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
-                time.sleep(1)
+                time.sleep(2)
                 self.splash.clearMessage()
                 self.splash.close()
                 sys.exit()

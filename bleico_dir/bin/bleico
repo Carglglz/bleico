@@ -142,10 +142,11 @@ class Worker(QRunnable):
 
 class SystemTrayIcon(QSystemTrayIcon):
     def __init__(self, icon, parent=None, device_uuid=None,
-                 logger=None, debug=False):
+                 logger=None, debug=False, max_tries=1):
         QSystemTrayIcon.__init__(self, icon, parent)
         self.debug = debug
         self.log = logger
+        self._ntries = 0
         # SPLASH SCREEN
         # Splash Screen
         self.splash_pix = QPixmap(SRC_PATH+"/bleico.png", 'PNG')
@@ -159,8 +160,19 @@ class SystemTrayIcon(QSystemTrayIcon):
         # Upydevice
         self.esp32_device = BLE_DEVICE(device_uuid, init=True)
         while not self.esp32_device.connected:
-            self.esp32_device = BLE_DEVICE(device_uuid, init=True)
-            time.sleep(2)
+            if self._ntries <= max_tries:
+                self.esp32_device = BLE_DEVICE(device_uuid, init=True)
+                time.sleep(2)
+                self._ntries += 1
+            else:
+                self.log.error("Device {} not found".format(device_uuid))
+                self.splash.clearMessage()
+                self.splash.showMessage("Device {} not found".format(device_uuid),
+                                        Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
+                time.sleep(2)
+                self.splash.clearMessage()
+                self.splash.close()
+                sys.exit()
         self.splash.clearMessage()
         # Create the menu
         if "{}.png".format(self.esp32_device.appearance_tag) not in os.listdir(SRC_PATH):
@@ -642,7 +654,7 @@ if args.m == 'config':
     if args.t is None:
         print('Target uuid required, see -t')
         sys.exit()
-    store_dev('bleico_', uuid=args.t)
+    store_dev('bleico_', uuid=args.t, dir="{}/.blewiz".format(os.environ['HOME']))
 
     print('bleico device settings saved in .blewiz directory!')
     sys.exit()
