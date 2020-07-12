@@ -6,8 +6,9 @@ block_cipher = None
 a = Analysis(['bleico_app.py'],
              pathex=['/Users/carlosgilgonzalez/Desktop/IBM_PROJECTS/MICROPYTHON/TOOLS/UTILS/bleico/bleico_app'],
              binaries=[],
-             datas=[('HID_DIGITAL_PEN.png', '.'), ('bleicon.icns', '.'), ('bleico_dark.png', '.'), ('UNKNOWN.png', '.'), ('UNKNOWN_dark.png', '.'), ('HID_DIGITAL_PEN_dark.png', '.'), ('GENERIC_THERMOMETER_dark.png', '.'),
- ('Bluelogo.png', '.'), ('Bluelogo_dark.png', '.'), ('GENERIC_THERMOMETER.png', '.'), ('BlueL.png', '.'), ('bleico.png', '.')],
+             datas=[('../bleico/*.png', '.'),
+                    ('credits.txt', '.'),
+                    ('/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/bleak_sigspec/characteristics_xml/*.xml', 'bleak_sigspec/characteristics_xml/')],
              hiddenimports=[],
              hookspath=[],
              runtime_hooks=[],
@@ -27,7 +28,7 @@ exe = EXE(pyz,
           bootloader_ignore_signals=False,
           strip=False,
           upx=True,
-          console=False , icon='bleicon.icns')
+          console=False , icon='bleico.icns')
 coll = COLLECT(exe,
                a.binaries,
                a.zipfiles,
@@ -38,5 +39,9 @@ coll = COLLECT(exe,
                name='bleico')
 app = BUNDLE(coll,
              name='bleico.app',
-             icon='bleicon.icns',
-             bundle_identifier=None)
+             icon='bleico.icns',
+             bundle_identifier=None,
+             info_plist={'CFBundleShortVersionString': '0.0.1',
+            'NSPrincipalClass': 'NSApplication',
+            'LSUIElement': '1',
+          	'NSHighResolutionCapable': 'True'})

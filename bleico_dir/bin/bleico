@@ -46,12 +46,6 @@ parser.add_argument(
     "m", metavar='Mode', help=helparg)
 parser.add_argument('-v', action='version')
 parser.add_argument('-t', help='device target uuid')
-parser.add_argument('-c', help='device average comsumption in mA', default=80,
-                    type=int)
-parser.add_argument('-bat', help='battery capacity in mAh', default=1100,
-                    type=int)
-parser.add_argument('-spow', help='solar panel specs in mW', default=2000,
-                    type=int)
 parser.add_argument('-debug', help='debug info log', action='store_true')
 parser.add_argument('-dflev',
                     help='debug file mode level, options [debug, info, warning, error, critical]',
@@ -146,7 +140,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.splash.setWindowFlags(Qt.WindowStaysOnTopHint | Qt.FramelessWindowHint)
         self.splash.setEnabled(False)
         self.splash.show()
-        self.splash.showMessage("Scanning for device...", Qt.AlignCenter, Qt.black)
+        self.splash.showMessage("Scanning for device...",
+                                Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         # Upydevice
         self.esp32_device = BLE_DEVICE(device_uuid, init=True)
         while not self.esp32_device.connected:
@@ -161,7 +156,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.app_icon.setIsMask(True)
         self.setIcon(self.app_icon)
         self.splash.showMessage("Device {} found".format(self.esp32_device.name),
-                                Qt.AlignCenter, Qt.black)
+                                Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         self.menu = QMenu(parent)
         # DEVICE INFO
         self.device_label = QAction("Device: ?")

@@ -1,2 +1,5 @@
 
-✔ pyinstaller -w -y -n bleico -i bleicon.icns --windowed bleico.spec @done(2020-06-12 01:27)
+✔ $ pyinstaller -w -y -n bleico -i bleicon.icns --windowed bleico.spec @done(2020-06-12 01:27)
+$ pyinstaller -w -y -n blewiz -i blewiz_logo.icns --windowed blewiz.spec
+$ cd dist
+$ appdmg blewiz_appdmg.json blewiz_img.dmg
