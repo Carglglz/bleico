@@ -10,10 +10,10 @@ import asyncio
 import struct
 from bleak import BleakClient
 from bleak import discover
-from blewiz.chars import ble_char_dict
+from bleico.chars import ble_char_dict
 from bleak.utils import get_char_value, get_xml_char
-from blewiz.appearances import ble_appearances_dict
-from blewiz.descriptors import ble_descriptors_dict
+from bleico.appearances import ble_appearances_dict
+from bleico.descriptors import ble_descriptors_dict
 import struct
 import uuid as U_uuid
 import time

@@ -1,0 +1,5 @@
+
+$ pyinstaller -w -y -n bleico -i bleico.icns --windowed bleico.spec
+
+$ cd dist
+$ appdmg bleico_appdmg.json bleico_img.dmg
