@@ -167,7 +167,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             if self._ntries <= max_tries:
                 self.esp32_device = BLE_DEVICE(device_uuid, init=True)
                 time.sleep(2)
-                self.n_tries += 1
+                self._ntries += 1
             else:
                 self.log.error("Device {} not found".format(device_uuid))
                 self.splash.clearMessage()
