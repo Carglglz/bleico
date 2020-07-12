@@ -621,8 +621,8 @@ class SystemTrayIcon(QSystemTrayIcon):
 #############################################
 
 
-if '.upydevices' not in os.listdir("{}".format(os.environ['HOME'])):
-    os.mkdir("{}/.upydevices".format(os.environ['HOME']))
+if '.blewiz' not in os.listdir("{}".format(os.environ['HOME'])):
+    os.mkdir("{}/.blewiz".format(os.environ['HOME']))
 # Config device option
 if args.m == 'config':
     if args.t is None:
@@ -630,7 +630,7 @@ if args.m == 'config':
         sys.exit()
     store_dev('bleico_', uuid=args.t)
 
-    print('bleico device settings saved in upydevices directory!')
+    print('bleico device settings saved in .blewiz directory!')
     sys.exit()
 
 if args.m == 'run':
