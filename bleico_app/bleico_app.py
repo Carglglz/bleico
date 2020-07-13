@@ -381,28 +381,33 @@ class SystemTrayIcon(QSystemTrayIcon):
         if data == 'finished':
             self.log.info("MENU CALLBACK: THREAD FINISH RECEIVED")
             self.ready_to_exit = True
+        elif data == 'disconnected':
+            self.notify("Disconnection event", 'Device {} is now disconnected'.format(self.esp32_device.name))
         else:
-            try:
-                for char in data.keys():
-                    # HANDLE SINGLE VALUES
-                    char_text = self.esp32_device.pformat_char_value(data[char],
-                                                                     char=char,
-                                                                     rtn=True,
-                                                                     prnt=False,
-                                                                     one_line=True,
-                                                                     only_val=True)
+            if not data:
+                pass
+            else:
+                try:
+                    for char in data.keys():
+                        # HANDLE SINGLE VALUES
+                        char_text = self.esp32_device.pformat_char_value(data[char],
+                                                                         char=char,
+                                                                         rtn=True,
+                                                                         prnt=False,
+                                                                         one_line=True,
+                                                                         only_val=True)
 
-                    self.char_actions_dict[char].setText(char_text)
+                        self.char_actions_dict[char].setText(char_text)
+                        if self.debug:
+                            for serv in self.esp32_device.services_rsum.keys():
+                                if char in self.esp32_device.services_rsum[serv]:
+                                    self.log.info("[{}] {}".format(serv, char_text))
+                        # TODO: HANDLE BITFLAGS
+                        # TODO: HANDLE MULTIPLE VALUES
+                    self.last_update_action.setText("Last Update: {}".format(datetime.strftime(datetime.now(), "%H:%M:%S")))
+                except Exception as e:
                     if self.debug:
-                        for serv in self.esp32_device.services_rsum.keys():
-                            if char in self.esp32_device.services_rsum[serv]:
-                                self.log.info("[{}] {}".format(serv, char_text))
-                    # TODO: HANDLE BITFLAGS
-                    # TODO: HANDLE MULTIPLE VALUES
-                self.last_update_action.setText("Last Update: {}".format(datetime.strftime(datetime.now(), "%H:%M:%S")))
-            except Exception as e:
-                if self.debug:
-                    self.log.error(e)
+                        self.log.error(e)
 
     def update_menu(self, progress_callback):  # define the notify callback inside that takes progress_callback as variable
         while not self.quit_thread:
@@ -422,6 +427,12 @@ class SystemTrayIcon(QSystemTrayIcon):
                     progress_callback.emit(data)
                 except Exception as e:
                     progress_callback.emit(False)
+                    if self.esp32_device.is_connected():
+                        pass
+                    else:
+                        self.log.info("THREAD MENU: Device disconnected")
+                        progress_callback.emit('disconnected')
+                        break
             time.sleep(1)
         progress_callback.emit("finished")
         time.sleep(1)
