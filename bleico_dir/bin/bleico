@@ -379,6 +379,8 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.ready_to_exit = True
         elif data == 'disconnected':
             self.notify("Disconnection event", 'Device {} is now disconnected'.format(self.esp32_device.name))
+        elif data == 'connected':
+            self.notify("Reconnection event", 'Device {} is now connected'.format(self.esp32_device.name))
         else:
             if not data:
                 pass
@@ -406,29 +408,45 @@ class SystemTrayIcon(QSystemTrayIcon):
                         self.log.error(e)
 
     def update_menu(self, progress_callback):  # define the notify callback inside that takes progress_callback as variable
+        connect_loop = False
         while not self.quit_thread:
             if self.quit_thread:
                 break
             else:
-                try:
-                    data = {}
-                    for char in self.esp32_device.readables.keys():
-                        if char not in self.avoid_chars and char not in self.chars_to_notify:
-                            # if self.esp32_device.chars_xml[char].fmt is None:
-                            #     self.esp32_device.chars_xml[char].fmt = 'B'
-                            if self.quit_thread:
-                                break
-                            else:
-                                data[char] = (self.esp32_device.get_char_value(char))
-                    progress_callback.emit(data)
-                except Exception as e:
-                    progress_callback.emit(False)
-                    if self.esp32_device.is_connected():
-                        pass
+                if not connect_loop:
+                    try:
+                        data = {}
+                        for char in self.esp32_device.readables.keys():
+                            if char not in self.avoid_chars and char not in self.chars_to_notify:
+                                # if self.esp32_device.chars_xml[char].fmt is None:
+                                #     self.esp32_device.chars_xml[char].fmt = 'B'
+                                if self.quit_thread:
+                                    break
+                                else:
+                                    data[char] = (self.esp32_device.get_char_value(char))
+                        progress_callback.emit(data)
+                    except Exception as e:
+                        progress_callback.emit(False)
+                        if self.esp32_device.is_connected():
+                            pass
+                        else:
+                            self.log.info("THREAD MENU: Device disconnected")
+                            progress_callback.emit('disconnected')
+                            self.esp32_device.connected = False
+                            connect_loop = True
+                            time.sleep(4)
+                else:
+                    self.log.info("THREAD MENU: Trying to reconnect...")
+                    self.esp32_device.connect()
+                    if self.esp32_device.connected:
+                        self.log.info("THREAD MENU: Device reconnected...")
+                        progress_callback.emit('connected')
+                        connect_loop = False
                     else:
-                        self.log.info("THREAD MENU: Device disconnected")
-                        progress_callback.emit('disconnected')
-                        break
+                        self.log.info("THREAD MENU: Device unreachable...")
+                        self.log.info("THREAD MENU: Trying again in 30 seconds")
+                        time.sleep(29)
+
             time.sleep(1)
         progress_callback.emit("finished")
         time.sleep(1)
