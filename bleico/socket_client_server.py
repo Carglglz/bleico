@@ -74,7 +74,7 @@ class socket_server:
         self.conn, self.addr_client = self.serv_soc.accept()
         print('Connection received...')
         print(self.addr_client)
-        # self.conn.settimeout(1)
+        self.conn.settimeout(10)
 
     def send_message(self, message):
         self.conn.sendall(bytes(message, 'utf-8'))

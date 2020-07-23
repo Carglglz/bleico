@@ -272,6 +272,10 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.last_update_action = QAction()
         self.last_update_action.setEnabled(False)
         self.menu.addAction(self.last_update_action)
+        # STATUS
+        self.device_status_action = QAction("Status: Connected")
+        self.device_status_action.setEnabled(False)
+        self.menu.addAction(self.device_status_action)
         self.separator_exit = QAction()
         self.separator_exit.setSeparator(True)
         self.menu.addAction(self.separator_exit)
@@ -379,6 +383,17 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.ready_to_exit = True
         elif data == 'disconnected':
             self.notify("Disconnection event", 'Device {} is now disconnected'.format(self.esp32_device.name))
+            for char in self.chars_to_notify:
+                self.notify_char_actions_dict[char].setText('Notify')
+                self.log.info("Char: {} Notification Disabled".format(char))
+                self.chars_to_notify.remove(char)
+                self.device_status_action.setText('Status: Disconnected')
+        elif isinstance(data, list):
+            if data[0] == 'reconnect':
+                self.device_status_action.setText('Status: Reconnection in {} s'.format(29 - data[1]))
+        elif data == 'reconnecting':
+            self.device_status_action.setText('Status: Reconnecting...')
+
         elif data == 'connected':
             self.notify("Reconnection event", 'Device {} is now connected'.format(self.esp32_device.name))
         else:
@@ -403,6 +418,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                         # TODO: HANDLE BITFLAGS
                         # TODO: HANDLE MULTIPLE VALUES
                     self.last_update_action.setText("Last Update: {}".format(datetime.strftime(datetime.now(), "%H:%M:%S")))
+                    self.device_status_action.setText('Status: Connected')
                 except Exception as e:
                     if self.debug:
                         self.log.error(e)
@@ -425,7 +441,15 @@ class SystemTrayIcon(QSystemTrayIcon):
                                 else:
                                     data[char] = (self.esp32_device.get_char_value(char))
                         progress_callback.emit(data)
+                    except TypeError as e:
+                        self.log.error(e)
+                        self.esp32_device.connected = False
+                        self.log.info("THREAD MENU: Device disconnected")
+                        progress_callback.emit('disconnected')
+                        connect_loop = True
+                        time.sleep(4)
                     except Exception as e:
+                        self.log.error(e)
                         progress_callback.emit(False)
                         if self.esp32_device.is_connected():
                             pass
@@ -437,6 +461,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                             time.sleep(4)
                 else:
                     self.log.info("THREAD MENU: Trying to reconnect...")
+                    progress_callback.emit('reconnecting')
                     self.esp32_device.connect()
                     if self.esp32_device.connected:
                         self.log.info("THREAD MENU: Device reconnected...")
@@ -445,7 +470,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                     else:
                         self.log.info("THREAD MENU: Device unreachable...")
                         self.log.info("THREAD MENU: Trying again in 30 seconds")
-                        time.sleep(29)
+                        for i in range(29):
+                            progress_callback.emit(['reconnect', i])
+                            time.sleep(1)
 
             time.sleep(1)
         progress_callback.emit("finished")
