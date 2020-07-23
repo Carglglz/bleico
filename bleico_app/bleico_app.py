@@ -262,15 +262,22 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.separator_etc = QAction()
         self.separator_etc.setSeparator(True)
         self.menu.addAction(self.separator_etc)
-        self.notifiable_label = QAction("Notify")
-        self.notifiable_label.setEnabled(False)
-        self.menu.addAction(self.notifiable_label)
+        # NOTIFY
+        self.notify_menu = self.menu.addMenu("Notify")
+        # self.notifiable_label = QAction("Notify")
+        # self.notifiable_label.setEnabled(False)
+        # self.menu.addAction(self.notifiable_label)
         for char in self.esp32_device.notifiables.keys():
-            self.notify_char_menu_dict[char] = self.menu.addMenu(char)
+            self.notify_char_menu_dict[char] = self.notify_menu.addMenu(char)
             self.notify_char_actions_dict[char] = self.notify_char_menu_dict[char].addAction('Notify')
             self.notify_char_actions_dict[char].triggered.connect(self.check_which_triggered)
             # here trigger action --> set flag notify True, start Thread, callback notify ...
 
+        self.notify_menu.addSeparator()
+        self.notify_sound = QAction("Notify: Sound off")
+        self.notify_sound.setEnabled(True)
+        self.notify_menu.addAction(self.notify_sound)
+        self.notify_sound.triggered.connect(self.toggle_notify_sound)
         # TIME LAST UPDATE
         self.menu.addSeparator()
         self.last_update_action = QAction()
@@ -307,6 +314,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.char_to_notify = None
         self.chars_to_notify = []
         self.notify_is_on = False
+        self.notify_sound_is_on = False
         # self.notify_loop = None
         self.notify_loop = asyncio.new_event_loop()
 
@@ -316,6 +324,13 @@ class SystemTrayIcon(QSystemTrayIcon):
                             'Firmware Revision String']
         # ON EXIT
         self.ready_to_exit = False
+
+    def toggle_notify_sound(self):
+        self.notify_sound_is_on = not self.notify_sound_is_on
+        if self.notify_sound_is_on:
+            self.notify_sound.setText("Notify: Sound on")
+        else:
+            self.notify_sound.setText("Notify: Sound off")
 
     def check_which_triggered(self, checked):
         action = self.sender()
