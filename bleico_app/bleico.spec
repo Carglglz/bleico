@@ -6,7 +6,7 @@ block_cipher = None
 a = Analysis(['bleico_app.py'],
              pathex=['/Users/carlosgilgonzalez/Desktop/IBM_PROJECTS/MICROPYTHON/TOOLS/UTILS/bleico/bleico_app'],
              binaries=[],
-             datas=[('../bleico/*.png', '.'),
+             datas=[('../bleico/icons/*.png', 'icons'),
                     ('credits.txt', '.'),
                     ('/Library/Frameworks/Python.framework/Versions/3.7/lib/python3.7/site-packages/bleak_sigspec/characteristics_xml/*.xml', 'bleak_sigspec/characteristics_xml/')],
              hiddenimports=[],

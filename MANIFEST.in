@@ -1,2 +1,2 @@
-include bleico/*.png
-include bleico/*.icns
+include bleico/icons/*.png
+include bleico/icons/*.icns

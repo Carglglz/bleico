@@ -73,7 +73,7 @@ else:
 #                     default='info').completer = ChoicesCompleter(log_levs)
 # args = parser.parse_args()
 
-SRC_PATH = bundle_dir
+SRC_PATH = bundle_dir + '/icons'
 
 
 # THREAD WORKERS
@@ -463,11 +463,29 @@ class SystemTrayIcon(QSystemTrayIcon):
                         progress_callback.emit(data)
                     except TypeError as e:
                         self.log.error(e)
-                        self.esp32_device.connected = False
-                        self.log.info("THREAD MENU: Device disconnected")
-                        progress_callback.emit('disconnected')
-                        connect_loop = True
-                        time.sleep(4)
+                        if self.esp32_device.is_connected():
+                            while True:
+                                self.log.info('Disconnecting...')
+                                try:
+                                    self.esp32_device.disconnect(timeout=1)
+                                    break
+                                except Exception as e:
+                                    self.log.error('Disconnection timeout')
+                                    time.sleep(5)
+                            while True:
+                                self.log.info('Assert Disconnection...')
+                                try:
+                                    self.esp32_device.disconnect(timeout=1)
+                                    break
+                                except Exception as e:
+                                    self.log.error('Disconnection timeout')
+                                    time.sleep(5)
+                        else:
+                            self.log.info("THREAD MENU: Device disconnected")
+                            progress_callback.emit('disconnected')
+                            self.esp32_device.connected = False
+                            connect_loop = True
+                            time.sleep(4)
                     except Exception as e:
                         self.log.error(e)
                         progress_callback.emit(False)
@@ -493,6 +511,10 @@ class SystemTrayIcon(QSystemTrayIcon):
                         for i in range(29):
                             progress_callback.emit(['reconnect', i])
                             time.sleep(1)
+                            if self.quit_thread:
+                                break
+                        if self.quit_thread:
+                            break
 
             time.sleep(1)
         progress_callback.emit("finished")
