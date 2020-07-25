@@ -401,7 +401,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                 self.notify_char_actions_dict[char].setText('Notify')
                 self.log.info("Char: {} Notification Disabled".format(char))
                 self.chars_to_notify.remove(char)
-                self.device_status_action.setText('Status: Disconnected')
+            self.device_status_action.setText('Status: Disconnected')
+        elif data == 'disconnecting':
+            self.device_status_action.setText('Status: Disconnecting...')
         elif isinstance(data, list):
             if data[0] == 'reconnect':
                 self.device_status_action.setText('Status: Reconnection in {} s'.format(29 - data[1]))
@@ -458,22 +460,25 @@ class SystemTrayIcon(QSystemTrayIcon):
                     except TypeError as e:
                         self.log.error(e)
                         if self.esp32_device.is_connected():
-                            while True:
-                                self.log.info('Disconnecting...')
-                                try:
-                                    self.esp32_device.disconnect(timeout=1)
+                            self.log.info('Disconnecting...')
+                            progress_callback.emit('disconnecting')
+                            for i in range(5):
+                                status = self.esp32_device.is_connected()
+                                self.log.info('Connected: {}'.format(status))
+                                if self.quit_thread:
                                     break
-                                except Exception as e:
-                                    self.log.error('Disconnection timeout')
-                                    time.sleep(5)
-                            while True:
-                                self.log.info('Assert Disconnection...')
-                                try:
-                                    self.esp32_device.disconnect(timeout=1)
-                                    break
-                                except Exception as e:
-                                    self.log.error('Disconnection timeout')
-                                    time.sleep(5)
+                                while True:
+                                    if self.quit_thread:
+                                        break
+                                    self.log.info('Assert Disconnection...')
+                                    try:
+                                        self.esp32_device.disconnect(timeout=1)
+                                        time.sleep(1)
+                                        break
+                                    except Exception as e:
+                                        self.log.error('Disconnection timeout')
+                                        time.sleep(5)
+
                         else:
                             self.log.info("THREAD MENU: Device disconnected")
                             progress_callback.emit('disconnected')
