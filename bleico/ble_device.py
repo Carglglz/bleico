@@ -154,7 +154,13 @@ class BASE_BLE_DEVICE:
         self.loop.run_until_complete(self.disconnect_client(log=log,
                                                             timeout=timeout))
 
+    def set_disconnected_callback(self, callback):
+        self.ble_client.set_disconnected_callback(callback)
+
+    def disconnection_callback(self, client):
+        self.connected = False
     # SERVICES
+
     def get_services(self, log=True):
         for service in self.ble_client.services:
             if service.description == 'Unknown' and service.uuid.lower() in list(NUS.keys()):

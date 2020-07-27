@@ -60,6 +60,7 @@ parser.add_argument(
     "m", metavar='Mode', help=helparg)
 parser.add_argument('-v', action='version')
 parser.add_argument('-t', help='device target uuid')
+parser.add_argument('-r', help='read timeout in seconds', type=int, default=1)
 parser.add_argument('-debug', help='debug info log', action='store_true')
 parser.add_argument('-dflev',
                     help='debug file mode level, options [debug, info, warning, error, critical]',
@@ -70,6 +71,20 @@ parser.add_argument('-dslev',
 args = parser.parse_args()
 
 SRC_PATH = bleico.__path__[0] + '/icons'
+
+
+class DisconnectionError(Exception):
+    def __init__(self, *args):
+        if args:
+            self.message = args[0]
+        else:
+            self.message = None
+
+    def __str__(self):
+        if self.message:
+            return 'DisconnectionError, {0} '.format(self.message)
+        else:
+            return 'DisconnectionError has been raised'
 
 
 # THREAD WORKERS
@@ -142,11 +157,13 @@ class Worker(QRunnable):
 
 class SystemTrayIcon(QSystemTrayIcon):
     def __init__(self, icon, parent=None, device_uuid=None,
-                 logger=None, debug=False, max_tries=1):
+                 logger=None, debug=False, max_tries=1, read_timeout=1):
         QSystemTrayIcon.__init__(self, icon, parent)
         self.debug = debug
         self.log = logger
         self._ntries = 0
+        self._read_timeout = read_timeout
+        self._timeout_count = read_timeout - 1
         # SPLASH SCREEN
         # Splash Screen
         self.splash_pix = QPixmap(SRC_PATH+"/bleico.png", 'PNG')
@@ -157,7 +174,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.splash.show()
         self.splash.showMessage("Scanning for device...",
                                 Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
-        # Upydevice
+        # Bledevice
         self.esp32_device = BLE_DEVICE(device_uuid, init=True)
         while not self.esp32_device.connected:
             if self._ntries <= max_tries:
@@ -202,12 +219,6 @@ class SystemTrayIcon(QSystemTrayIcon):
                             'Firmware Revision String']
 
         self.serv_menu = self.menu.addMenu("Services")
-        # self.serv_label.setEnabled(False)
-        # self.serv_menu.addAction(self.serv_label)
-        # main_serv = list(self.esp32_device.services_rsum.keys())[0]
-        # main_serv_char = self.esp32_device.services_rsum[main_serv][0]
-        # self.main_service = QAction("{} : {}".format(main_serv, main_serv_char))
-        # self.serv_menu.addAction(self.main_service)
         if self.debug:
             self.log.info("Device {} found".format(self.esp32_device.name))
             self.log.info("Services:")
@@ -219,7 +230,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 if self.debug:
                     self.log.info(" (C)  - {}".format(char))
                 self.serv_action.addAction(char)
-            # self.serv_menu.addAction(self.main_service)
+
         self.servs_separator = QAction()
         self.servs_separator.setSeparator(True)
         self.menu.addAction(self.servs_separator)
@@ -260,9 +271,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.menu.addAction(self.separator_etc)
         # NOTIFY
         self.notify_menu = self.menu.addMenu("Notify")
-        # self.notifiable_label = QAction("Notify")
-        # self.notifiable_label.setEnabled(False)
-        # self.menu.addAction(self.notifiable_label)
         for char in self.esp32_device.notifiables.keys():
             self.notify_char_menu_dict[char] = self.notify_menu.addMenu(char)
             self.notify_char_actions_dict[char] = self.notify_char_menu_dict[char].addAction('Notify')
@@ -310,13 +318,14 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.chars_to_notify = []
         self.notify_is_on = False
         self.notify_sound_is_on = False
-        # self.notify_loop = None
         self.notify_loop = asyncio.new_event_loop()
+        self.notify_type_icon = {'Info': QSystemTrayIcon.Information,
+                                 'Warning': QSystemTrayIcon.Warning,
+                                 'Critical': QSystemTrayIcon.Critical}
 
-        # AVOID READ
-        self.avoid_chars = ['Appearance', 'Manufacturer Name String',
-                            'Battery Power State', 'Model Number String',
-                            'Firmware Revision String']
+        # Disconnection callback
+        self.esp32_device.set_disconnected_callback(self.esp32_device.disconnection_callback)
+
         # ON EXIT
         self.ready_to_exit = False
 
@@ -334,10 +343,8 @@ class SystemTrayIcon(QSystemTrayIcon):
                 if char not in self.chars_to_notify:
                     self.log.info("Char: {} Notification Enabled".format(char))
                     self.char_to_notify = char
-                    # for char in self.esp32_device.notifiables.keys():
                     self.chars_to_notify.append(char)
                     action.setText('Stop Notification')
-                    # action.triggered.connect(self.check_which_triggered) # stop notify Thread
                     if self.main_server:
                         self.main_server.send_message("start:{}".format(char))
                     else:
@@ -347,50 +354,10 @@ class SystemTrayIcon(QSystemTrayIcon):
                     self.log.info("Char: {} Notification Disabled".format(char))
                     self.chars_to_notify.remove(char)
                     self.main_server.send_message("stop:{}".format(char))
-                    # self.stop_notify_thread()
                     action.setText('Notify')
-                    # self.notify_is_on = False
-                    # self.char_to_notify = None
-                    # action.triggered.connect(self.check_which_triggered)
-            # Here
-
-    # def set_dark_mode_ICON(self):
-    #     self.setIcon(QIcon(bleico.__path__[0]+"/{}_dark.png".format(self.esp32_device.appearance)))
-    #
-    # def set_day_mode_ICON(self):
-    #     self.setIcon(QIcon(bleico.__path__[0]+"/{}.png".format(self.esp32_device.appearance)))
-    #
-    # def autoset_icon(self, n):  # worker callback
-    #     if n == 1:
-    #         self.set_dark_mode_ICON()
-    #     else:
-    #         self.set_day_mode_ICON()
-    #
-    # def update_icon(self, progress_callback):  # in thread
-    #     while True:
-    #         if self.quit_thread:
-    #             break
-    #         else:
-    #             self.theme = darkdetect.theme()
-    #             if self.theme == 'Dark':
-    #                 progress_callback.emit(1)
-    #             else:
-    #                 progress_callback.emit(0)
-    #         time.sleep(1)
-    #
-    # def start_update_icon(self):
-    #     # Pass the function to execute
-    #     worker = Worker(self.update_icon)  # Any other args, kwargs are passed to the run function
-    #     # worker.signals.result.connect(self.print_output)
-    #     # worker.signals.finished.connect(self.thread_complete)
-    #     worker.signals.progress.connect(self.autoset_icon)  # connect callback
-    #
-    #     # Execute
-    #     self.threadpool.start(worker)
 
     def refresh_menu(self, response):
 
-        # data = self.esp32_device.read_char(key='Environmental Sensing', data_fmt="f")[0]
         data = response
         if data == 'finished':
             self.log.info("MENU CALLBACK: THREAD FINISH RECEIVED")
@@ -411,7 +378,12 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.device_status_action.setText('Status: Reconnecting...')
 
         elif data == 'connected':
-            self.notify("Reconnection event", 'Device {} is now connected'.format(self.esp32_device.name))
+            self.notify("Reconnection event",
+                        'Device {} is now connected'.format(self.esp32_device.name),
+                        typeicon='Info')
+        elif data == 'timeupdate':
+            self.last_update_action.setText("Last Update: {}".format(datetime.strftime(datetime.now(), "%H:%M:%S")))
+
         else:
             if not data:
                 pass
@@ -446,18 +418,24 @@ class SystemTrayIcon(QSystemTrayIcon):
                 break
             else:
                 if not connect_loop:
+                    self._timeout_count += 1
                     try:
-                        data = {}
-                        for char in self.esp32_device.readables.keys():
-                            if char not in self.avoid_chars and char not in self.chars_to_notify:
-                                # if self.esp32_device.chars_xml[char].fmt is None:
-                                #     self.esp32_device.chars_xml[char].fmt = 'B'
-                                if self.quit_thread:
-                                    break
-                                else:
-                                    data[char] = (self.esp32_device.get_char_value(char))
-                        progress_callback.emit(data)
-                    except TypeError as e:
+                        if self._read_timeout == self._timeout_count:
+                            data = {}
+                            for char in self.esp32_device.readables.keys():
+                                if char not in self.avoid_chars and char not in self.chars_to_notify:
+                                    if self.quit_thread:
+                                        break
+                                    else:
+                                        data[char] = (self.esp32_device.get_char_value(char))
+                            progress_callback.emit(data)
+                            self._timeout_count = 0
+                        else:
+                            if self.esp32_device.is_connected():
+                                progress_callback.emit('timeupdate')
+                            else:
+                                raise DisconnectionError('Device {} disconnected'.format(self.esp32_device.name))
+                    except (TypeError, DisconnectionError) as e:
                         self.log.error(e)
                         if self.esp32_device.is_connected():
                             self.log.info('Disconnecting...')
@@ -497,6 +475,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                             connect_loop = True
                             time.sleep(4)
                 else:
+                    self._timeout_count = 0
                     self.log.info("THREAD MENU: Trying to reconnect...")
                     progress_callback.emit('reconnecting')
                     self.esp32_device.connect()
@@ -507,6 +486,12 @@ class SystemTrayIcon(QSystemTrayIcon):
                     else:
                         self.log.info("THREAD MENU: Device unreachable...")
                         self.log.info("THREAD MENU: Trying again in 30 seconds")
+                        try:
+                            self.log.info('Assert Disconnection...')
+                            self.esp32_device.disconnect(timeout=1)
+
+                        except Exception as e:
+                            self.log.error(e)
                         for i in range(29):
                             progress_callback.emit(['reconnect', i])
                             time.sleep(1)
@@ -520,11 +505,10 @@ class SystemTrayIcon(QSystemTrayIcon):
         time.sleep(1)
         self.ready_to_exit = True
         self.log.info("THREAD MENU: FINISHED")
-        # progress_callback.emit("finished")
 
     def start_update_menu(self):
         # Pass the function to execute
-        worker_menu = Worker(self.update_menu) # Any other args, kwargs are passed to the run function
+        worker_menu = Worker(self.update_menu)  # Any other args, kwargs are passed to the run function
         # worker.signals.result.connect(self.print_output)
         # worker.signals.finished.connect(self.thread_complete)
         # worker.signals.progress.connect(self.progress_fn)
@@ -539,8 +523,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         try:
             for char in data.keys():
                 if char != 'Battery Power State':
-                    # if self.esp32_device.chars_xml[char].dec_exp is not None:
-                    #     data[char] = data[char]*10**(self.esp32_device.chars_xml[char].dec_exp)
                     data_value = get_char_value(data[char], self.esp32_device.chars_xml[char])
                     data_value_string = pformat_char_value(data_value,
                                                            rtn=True,
@@ -562,7 +544,6 @@ class SystemTrayIcon(QSystemTrayIcon):
                 else:
                     data_value = get_char_value(data[char], self.esp32_device.chars_xml[char])
                     self.esp32_device.batt_power_state = self.esp32_device.map_powstate(data_value['State']['Value'])
-                    # self.esp32_device.unpack_batt_power_state(data[char])
                     for state, value in self.esp32_device.batt_power_state.items():
                         self.battery_power_state_actions_dict[state].setText("{}: {}".format(state, value))
                     for serv in self.esp32_device.services_rsum.keys():
@@ -603,7 +584,6 @@ class SystemTrayIcon(QSystemTrayIcon):
                 message = data.decode()
                 self.log.info('NOTIFY_THREAD: {}'.format(message))
                 if message == 'exit':
-                    # await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
                     aio_client_w.write('ok'.encode())
                     self.log.info('NOTIFY_THREAD: {}'.format("Stopping notification now..."))
                     for char in self.chars_to_notify:
@@ -620,51 +600,38 @@ class SystemTrayIcon(QSystemTrayIcon):
                         await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[char])
                     await asyncio.sleep(1)
 
-        # async def unsubscribe_char():
-        #     self.log.info('NOTIFY_THREAD: {}'.format("Stopping notification now..."))
-        #     await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[self.char_to_notify])
-        #     self.log.info('NOTIFY_THREAD: {}'.format("Done!"))
-
         # GET NEW EVENT LOOP AND RUN
         try:
             asyncio.set_event_loop(self.notify_loop)
-            # n_loop.set_debug(True)
-            # asyncio.run_coroutine_threadsafe(as_char_notify(), self.esp32_device.loop)
             self.notify_loop.run_until_complete(as_char_notify())
-            # self.notify_loop.run_until_complete(unsubscribe_char())
-            # self.notify_loop.stop()
-            # self.notify_loop.close()
+
         except Exception as e:
             self.log.error('NOTIFY_THREAD: {}'.format(e))
-        # progress_callback.emit(False)
         self.log.info('NOTIFY_THREAD: {}'.format("THREAD FINISHED"))
 
     def start_notify_char(self):
         # Pass the function to execute
-        worker_notify = Worker(self.subscribe_notify) # Any other args, kwargs are passed to the run function
+        worker_notify = Worker(self.subscribe_notify)  # Any other args, kwargs are passed to the run function
         # worker.signals.result.connect(self.print_output)
         # worker.signals.finished.connect(self.thread_complete)
         # worker.signals.progress.connect(self.progress_fn)
         worker_notify.signals.progress.connect(self.receive_notification)
 
         # Execute
-        # self.threadpool.start(worker_notify)
         self.main_server = socket_server(8845)
-        self.port = self.main_server.get_free_port() # start stop multiple chars to notify
+        self.port = self.main_server.get_free_port()  # start stop multiple chars to notify
         self.threadpool.start(worker_notify)
         self.main_server.start_SOC()
         self.log.info("NOTIFY_THREAD: {}".format(self.main_server.recv_message()))
 
-    def notify(self, typemessage, message):
+    def notify(self, typemessage, message, typeicon='Warning'):
         """Generate a desktop notification"""
         self.showMessage(typemessage,
                          message,
-                         QSystemTrayIcon.Warning,
+                         self.notify_type_icon[typeicon],
                          60*60000)
 
     def shutdown(self, loop):
-        # self.log.info("Shutdown...")
-
         try:
             loop.stop()
         except Exception as e:
@@ -682,13 +649,6 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         self.log.info("ASYNCIO EVENT LOOP: SHUTDOWN COMPLETE")
         self.ready_to_exit = True
-        # try:
-        #     if self.esp32_device.connected:
-        #         self.esp32_device.disconnect()
-        #     self.log.info("Here...")
-        # except Exception as e:
-        #     # print(e)
-        #     pass
 
     def stop_notify_thread(self):
 
@@ -719,11 +679,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.log.info("LOOP IS RUNNING : {}".format(loop_is_running))
         if loop_is_running:
             self.shutdown(self.esp32_device.loop)
-        # loop_is_running = self.notify_loop.is_running()
-        # self.log.info("NOTIFY LOOP IS RUNNING : {}".format(loop_is_running))
-        # if loop_is_running:
-        #     self.shutdown(self.notify_loop)
-        # self.esp32_device.loop.stop()
         # Run loop until tasks done
 
         time.sleep(2)
@@ -751,7 +706,8 @@ if args.m == 'config':
     if args.t is None:
         print('Target uuid required, see -t')
         sys.exit()
-    store_dev('bleico_', uuid=args.t, dir="{}/.blewiz".format(os.environ['HOME']))
+    store_dev('bleico_', uuid=args.t, read_timeout=args.r,
+              dir="{}/.blewiz".format(os.environ['HOME']))
 
     print('bleico device settings saved in .blewiz directory!')
     sys.exit()
@@ -777,8 +733,6 @@ $$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
     device_is_configurated = config_file_name in os.listdir(config_file_path)
     # Logging Setup
 
-    # filelog_path = "{}/.upydevices_logs/weatpyfluxd_logs/".format(
-    #     os.environ['HOME'])
     log_levels = {'debug': logging.DEBUG, 'info': logging.INFO,
                   'warning': logging.WARNING, 'error': logging.ERROR,
                   'critical': logging.CRITICAL}
@@ -797,7 +751,7 @@ def main():
     app = QApplication([])
     app.setQuitOnLastWindowClosed(False)
 
-    # Open upydevice configuration
+    # Open Bledevice configuration
     if device_is_configurated:
         if args.t is None:
             upy_conf = load_dev('bleico_', dir=config_file_path)
@@ -805,16 +759,16 @@ def main():
                 log.error("CONFIGURATION FILE NOT FOUND")
                 sys.exit()
         else:
-            upy_conf = {'uuid': args.t}
+            upy_conf = {'uuid': args.t, 'read_timeout': args.r}
 
     # Create the icon
 
     icon = QIcon(SRC_PATH+"/UNKNOWN.png")
     icon.setIsMask(True)
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
-                              logger=log, debug=args.debug)
+                              logger=log, debug=args.debug,
+                              read_timeout=upy_conf['read_timeout'])
     # Menu refresher
-    # trayIcon.start_update_icon()
     trayIcon.start_update_menu()
 
     trayIcon.show()
