@@ -1,2 +1,3 @@
 include bleico/icons/*.png
 include bleico/icons/*.icns
+include bleico/sounds/*.wav

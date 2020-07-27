@@ -31,6 +31,7 @@ import time
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QSplashScreen
 from PyQt5.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot, Qt
+from PyQt5.QtMultimedia import QSound
 import traceback
 import asyncio
 
@@ -74,6 +75,7 @@ else:
 # args = parser.parse_args()
 
 SRC_PATH = bundle_dir + '/icons'
+SRC_PATH_SOUND = bundle_dir + '/sounds'
 
 
 class DisconnectionError(Exception):
@@ -282,10 +284,10 @@ class SystemTrayIcon(QSystemTrayIcon):
             # here trigger action --> set flag notify True, start Thread, callback notify ...
 
         self.notify_menu.addSeparator()
-        self.notify_sound = QAction("Notify: Sound off")
-        self.notify_sound.setEnabled(True)
-        self.notify_menu.addAction(self.notify_sound)
-        self.notify_sound.triggered.connect(self.toggle_notify_sound)
+        self.notify_sound_act = QAction("Notify: Sound off")
+        self.notify_sound_act.setEnabled(True)
+        self.notify_menu.addAction(self.notify_sound_act)
+        self.notify_sound_act.triggered.connect(self.toggle_notify_sound)
         # TIME LAST UPDATE
         self.menu.addSeparator()
         self.last_update_action = QAction()
@@ -327,6 +329,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.notify_type_icon = {'Info': QSystemTrayIcon.Information,
                                  'Warning': QSystemTrayIcon.Warning,
                                  'Critical': QSystemTrayIcon.Critical}
+        self.notify_sound = QSound(SRC_PATH_SOUND + "/definite.wav")
 
         # Disconnection callback
         self.esp32_device.set_disconnected_callback(self.esp32_device.disconnection_callback)
@@ -337,9 +340,9 @@ class SystemTrayIcon(QSystemTrayIcon):
     def toggle_notify_sound(self):
         self.notify_sound_is_on = not self.notify_sound_is_on
         if self.notify_sound_is_on:
-            self.notify_sound.setText("Notify: Sound on")
+            self.notify_sound_act.setText("Notify: Sound on")
         else:
-            self.notify_sound.setText("Notify: Sound off")
+            self.notify_sound_act.setText("Notify: Sound off")
 
     def check_which_triggered(self, checked):
         action = self.sender()
@@ -489,12 +492,6 @@ class SystemTrayIcon(QSystemTrayIcon):
                     else:
                         self.log.info("THREAD MENU: Device unreachable...")
                         self.log.info("THREAD MENU: Trying again in 30 seconds")
-                        try:
-                            self.log.info('Assert Disconnection...')
-                            self.esp32_device.disconnect(timeout=1)
-
-                        except Exception as e:
-                            self.log.error(e)
                         for i in range(29):
                             progress_callback.emit(['reconnect', i])
                             time.sleep(1)
@@ -628,6 +625,8 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def notify(self, typemessage, message, typeicon='Warning'):
         """Generate a desktop notification"""
+        if self.notify_sound_is_on:
+            self.notify_sound.play()
         self.showMessage(typemessage,
                          message,
                          self.notify_type_icon[typeicon],
