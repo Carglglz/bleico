@@ -72,10 +72,14 @@ class BASE_BLE_DEVICE:
         self.connected = False
         self.services = {}
         self.services_rsum = {}
+        self.services_rsum_handles = {}
         self.chars_desc_rsum = {}
         self.readables = {}
         self.writeables = {}
         self.notifiables = {}
+        self.readables_handles = {}
+        self.writeables_handles = {}
+        self.notifiables_handles = {}
         if loop is None:
             self.loop = asyncio.get_event_loop()
         else:
@@ -177,6 +181,7 @@ class BASE_BLE_DEVICE:
                         service.uuid.lower(), service.description))
                 self.services[service.description] = {
                     'UUID': service.uuid.lower(), 'CHARS': {}}
+                self.services_rsum_handles[service.description] = []
 
             for char in service.characteristics:
                 if is_NUS:
@@ -192,23 +197,30 @@ class BASE_BLE_DEVICE:
                         self.services[NUS[service.uuid.lower()]]['CHARS'][char.uuid] = {char.description: ",".join(
                             char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
                 else:
+                    self.services_rsum_handles[service.description].append(char.handle)
                     if "read" in char.properties:
                         try:
                             self.readables[ble_char_dict[char.uuid]] = char.uuid
+                            self.readables_handles[char.handle] = ble_char_dict[char.uuid]
                         except Exception:
-                            self.readables[service.description] = char.uuid
+                            self.readables[char.description] = char.uuid
+                            self.readables_handles[char.handle] = char.description
 
                     if "notify" in char.properties:
                         try:
                             self.notifiables[ble_char_dict[char.uuid]] = char.uuid
+                            self.notifiables_handles[char.handle] = ble_char_dict[char.uuid]
                         except Exception:
-                            self.notifiables[service.description] = char.uuid
+                            self.notifiables[char.description] = char.uuid
+                            self.notifiables_handles[char.handle] = char.description
 
                     if "write" in char.properties:
                         try:
                             self.writeables[ble_char_dict[char.uuid]] = char.uuid
+                            self.writeables_handles[char.handle] = ble_char_dict[char.uuid]
                         except Exception as e:
-                            self.writeables[service.description] = char.uuid
+                            self.writeables[char.description] = char.uuid
+                            self.writeables_handles[char.handle] = char.description
                     try:
                         self.services[service.description]['CHARS'][char.uuid] = {ble_char_dict[char.uuid]: ",".join(
                             char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
@@ -287,11 +299,15 @@ class BASE_BLE_DEVICE:
     async def as_read_char(self, uuid):
         return bytes(await self.ble_client.read_gatt_char(uuid))
 
-    def read_char_raw(self, key=None, uuid=None):
+    def read_char_raw(self, key=None, uuid=None, handle=None):
         if key is not None:
             if key in list(self.readables.keys()):
-                data = self.loop.run_until_complete(
-                    self.as_read_char(self.readables[key]))
+                if handle:
+                    data = self.loop.run_until_complete(
+                        self.as_read_char(handle))
+                else:
+                    data = self.loop.run_until_complete(
+                        self.as_read_char(self.readables[key]))
                 return data
             else:
                 print('Characteristic not readable')
@@ -299,29 +315,61 @@ class BASE_BLE_DEVICE:
         else:
             if uuid is not None:
                 if uuid in list(self.readables.values()):
-                    data = self.loop.run_until_complete(
-                        self.as_read_char(uuid))
+                    if handle:
+                        data = self.loop.run_until_complete(
+                            self.as_read_char(handle))
+                    else:
+                        data = self.loop.run_until_complete(
+                            self.as_read_char(uuid))
                     return data
                 else:
                     print('Characteristic not readable')
 
-    def read_char(self, key=None, uuid=None, data_fmt="<h"):
+    def read_char(self, key=None, uuid=None, data_fmt="<h", handle=None):
         try:
             if data_fmt == 'utf8':  # Here function that handles format and unpack properly
-                data = self.read_char_raw(key=key, uuid=uuid).decode('utf8')
+                data = self.read_char_raw(key=key, uuid=uuid, handle=handle).decode('utf8')
                 return data
             else:
                 if data_fmt == 'raw':
-                    data = self.read_char_raw(key=key, uuid=uuid)
+                    data = self.read_char_raw(key=key, uuid=uuid, handle=handle)
                     return data
                 else:
-                    data, = struct.unpack(data_fmt, self.read_char_raw(key=key, uuid=uuid))
+                    data, = struct.unpack(data_fmt, self.read_char_raw(key=key,
+                                                                       uuid=uuid,
+                                                                       handle=handle))
                 return data
         except Exception as e:
             print(e)
 
     async def as_write_char(self, uuid, data):
         await self.ble_client.write_gatt_char(uuid, data)
+
+    def write_char(self, key=None, uuid=None, data=None, handle=None):
+        if key is not None:
+            if key in list(self.writeables.keys()):
+                if handle:
+                    data = self.loop.run_until_complete(
+                        self.as_write_char(handle, data))
+                else:
+                    data = self.loop.run_until_complete(
+                        self.as_write_char(self.writeables[key], data))  # make fmt_data
+                return data
+            else:
+                print('Characteristic not writeable')
+
+        else:
+            if uuid is not None:
+                if uuid in list(self.writeables.values()):
+                    if handle:
+                        data = self.loop.run_until_complete(
+                            self.as_write_char(handle, data))
+                    else:
+                        data = self.loop.run_until_complete(
+                            self.as_write_char(uuid, data))  # make fmt_data
+                    return data
+                else:
+                    print('Characteristic not writeable')
 
     def write_char_raw(self, key=None, uuid=None, data=None):
         if key is not None:
@@ -653,15 +701,16 @@ class BLE_DEVICE(BASE_BLE_DEVICE):
     def read_char_metadata(self):
         for serv in self.services_rsum.keys():
             for char in self.services_rsum[serv]:
-                if char in self.readables.keys():
+                if char in list(self.readables.keys()) + list(self.writeables.keys()) + list(self.notifiables.keys()):
                     try:
                         self.chars_xml[char] = get_xml_char(char)
                     except Exception as e:
                         pass
 
-    def get_char_value(self, char, rtn_flags=False, debug=False):
-        raw_val = self.read_char(char, data_fmt="raw")
-        f_value = get_char_value(raw_val, self.chars_xml[char], rtn_flags=rtn_flags,
+    def get_char_value(self, char, rtn_flags=False, debug=False, handle=None):
+        raw_val = self.read_char(char, data_fmt="raw", handle=handle)
+        f_value = get_char_value(raw_val, self.chars_xml[char],
+                                 rtn_flags=rtn_flags,
                                  debug=debug)
         return f_value
 

@@ -28,6 +28,7 @@ from bleico.chars import ble_char_dict, ble_char_dict_rev  # get own chars
 from bleico.devtools import store_dev, load_dev  # get own devtools
 from datetime import datetime
 import time
+import struct
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QSplashScreen
 from PyQt5.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot, Qt
@@ -245,6 +246,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.char_actions_dict = {}
         self.notify_char_menu_dict = {}
         self.notify_char_actions_dict = {}
+        self.write_char_menu_dict = {}
+        self.write_char_actions_dict = {}
         self.battery_power_state_actions_dict = {}
         for key, serv in self.serv_actions_dict.items():
             if key == 'Device Information':
@@ -257,18 +260,27 @@ class SystemTrayIcon(QSystemTrayIcon):
                 serv.setEnabled(False)
                 self.menu.addAction(serv)
                 for char in self.esp32_device.services_rsum[key]:
-                    if char in self.avoid_chars:
-                        if char == 'Battery Power State':
-                            self.char_actions_dict[char] = self.menu.addMenu(char)
-                            for state, value in self.esp32_device.batt_power_state.items():
-                                self.battery_power_state_actions_dict[state]=self.char_actions_dict[char].addAction("{}: {}".format(state,value))  # store actions in dict to update
+                    if char in self.esp32_device.readables.keys():
+                        if char in self.avoid_chars:
+                            if char == 'Battery Power State':
+                                self.char_actions_dict[char] = self.menu.addMenu(char)
+                                for state, value in self.esp32_device.batt_power_state.items():
+                                    self.battery_power_state_actions_dict[state]=self.char_actions_dict[char].addAction("{}: {}".format(state,value))  # store actions in dict to update
+                            else:
+                                self.char_actions_dict[char] = self.menu.addMenu(char)
+                                self.char_actions_dict[char].addAction(self.esp32_device.device_info[char])
                         else:
-                            self.char_actions_dict[char] = self.menu.addMenu(char)
-                            self.char_actions_dict[char].addAction(self.esp32_device.device_info[char])
-                    else:
-                        # HERE DIVIDE CHARS INTO SINGLE/FEATURES/MULTIPLE, READ CHAR --> CLASSIFY [A,B,C...]
-                        self.char_actions_dict[char] = QAction("{}: ? ua".format(char))
-                        self.menu.addAction(self.char_actions_dict[char])
+                            # HERE DIVIDE CHARS INTO SINGLE/FEATURES/MULTIPLE, READ CHAR --> CLASSIFY [A,B,C...]
+                            self.char_actions_dict[char] = QAction("{}: ? ua".format(char))
+                            self.menu.addAction(self.char_actions_dict[char])
+                    elif char in self.esp32_device.writeables.keys():
+                        self.write_char_menu_dict[char] = self.menu.addMenu(char)
+                        xml_char = self.esp32_device.chars_xml[char]
+                        if 'Enumerations' in xml_char.fields[xml_char.name].keys():
+                            self.write_char_actions_dict[char] = {}
+                            for k, v in xml_char.fields[xml_char.name]['Enumerations'].items():
+                                self.write_char_actions_dict[char][v] = self.write_char_menu_dict[char].addAction(v)
+                                self.write_char_actions_dict[char][v].triggered.connect(self.check_which_triggered_write)
                 self.serv_separator_dict[key] = QAction()
                 self.serv_separator_dict[key].setSeparator(True)
                 self.menu.addAction(self.serv_separator_dict[key])
@@ -364,6 +376,25 @@ class SystemTrayIcon(QSystemTrayIcon):
                     self.main_server.send_message("stop:{}".format(char))
                     action.setText('Notify')
 
+    def check_which_triggered_write(self, checked):
+        action = self.sender()
+        for char in self.write_char_actions_dict.keys():
+            for write_action_key in self.write_char_actions_dict[char].keys():
+                if action == self.write_char_actions_dict[char][write_action_key]:
+                    xml_char = self.esp32_device.chars_xml[char]
+                    self.log.info('Writing to {}'.format(char))
+                    if 'Enumerations' in xml_char.fields[xml_char.name].keys():
+                        try:
+                            map_write_values = {v: int(k) for k, v in xml_char.fields[xml_char.name]['Enumerations'].items()}
+                            val_to_write = map_write_values[write_action_key]
+                            format = xml_char.fields[xml_char.name]['Ctype']
+                            packed_val = struct.pack(format, val_to_write)
+                            self.esp32_device.write_char(xml_char.name,
+                                                         data=packed_val)
+                            self.log.info('{}: {}'.format(char, write_action_key))
+                        except Exception as e:
+                            self.log.error(e)
+
     def refresh_menu(self, response):
         data = response
         if data == 'finished':
@@ -389,6 +420,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.notify("Reconnection event",
                         'Device {} is now connected'.format(self.esp32_device.name),
                         typeicon='Info')
+            self.device_status_action.setText('Status: Connected')
         elif data == 'timeupdate':
             self.last_update_action.setText("Last Update: {}".format(datetime.strftime(datetime.now(), "%H:%M:%S")))
         else:
