@@ -252,35 +252,38 @@ class SystemTrayIcon(QSystemTrayIcon):
         for key, serv in self.serv_actions_dict.items():
             if key == 'Device Information':
                 self.devinfo_menu = self.menu.addMenu(key)
-                for char in self.esp32_device.services_rsum[key]:
-                    self.char_actions_dict[char] = self.devinfo_menu.addAction("{}: {}".format(char.replace('String', ''), self.esp32_device.device_info[char]))
-                    self.char_actions_dict[char].setEnabled(False)
+                for char_handle in self.esp32_device.services_rsum_handles[key]:
+                    char = self.esp32_device.readables_handles[char_handle]
+                    self.char_actions_dict[char_handle] = self.devinfo_menu.addAction("{}: {}".format(char.replace('String', ''), self.esp32_device.device_info[char]))
+                    self.char_actions_dict[char_handle].setEnabled(False)
                 self.menu.addSeparator()
             else:
                 serv.setEnabled(False)
                 self.menu.addAction(serv)
-                for char in self.esp32_device.services_rsum[key]:
-                    if char in self.esp32_device.readables.keys():
+                for char_handle in self.esp32_device.services_rsum_handles[key]:
+                    if char_handle in self.esp32_device.readables_handles.keys():
+                        char = self.esp32_device.readables_handles[char_handle]
                         if char in self.avoid_chars:
                             if char == 'Battery Power State':
-                                self.char_actions_dict[char] = self.menu.addMenu(char)
+                                self.char_actions_dict[char_handle] = self.menu.addMenu(char)
                                 for state, value in self.esp32_device.batt_power_state.items():
-                                    self.battery_power_state_actions_dict[state]=self.char_actions_dict[char].addAction("{}: {}".format(state,value))  # store actions in dict to update
+                                    self.battery_power_state_actions_dict[state]=self.char_actions_dict[char_handle].addAction("{}: {}".format(state,value))  # store actions in dict to update
                             else:
-                                self.char_actions_dict[char] = self.menu.addMenu(char)
-                                self.char_actions_dict[char].addAction(self.esp32_device.device_info[char])
+                                self.char_actions_dict[char_handle] = self.menu.addMenu(char)
+                                self.char_actions_dict[char_handle].addAction(self.esp32_device.device_info[char])
                         else:
                             # HERE DIVIDE CHARS INTO SINGLE/FEATURES/MULTIPLE, READ CHAR --> CLASSIFY [A,B,C...]
-                            self.char_actions_dict[char] = QAction("{}: ? ua".format(char))
-                            self.menu.addAction(self.char_actions_dict[char])
-                    elif char in self.esp32_device.writeables.keys():
-                        self.write_char_menu_dict[char] = self.menu.addMenu(char)
+                            self.char_actions_dict[char_handle] = QAction("{}: ? ua".format(char))
+                            self.menu.addAction(self.char_actions_dict[char_handle])
+                    if char_handle in self.esp32_device.writeables_handles.keys():
+                        char = self.esp32_device.writeables_handles[char_handle]
+                        self.write_char_menu_dict[char_handle] = self.menu.addMenu(char)
                         xml_char = self.esp32_device.chars_xml[char]
                         if 'Enumerations' in xml_char.fields[xml_char.name].keys():
-                            self.write_char_actions_dict[char] = {}
+                            self.write_char_actions_dict[char_handle] = {}
                             for k, v in xml_char.fields[xml_char.name]['Enumerations'].items():
-                                self.write_char_actions_dict[char][v] = self.write_char_menu_dict[char].addAction(v)
-                                self.write_char_actions_dict[char][v].triggered.connect(self.check_which_triggered_write)
+                                self.write_char_actions_dict[char_handle][v] = self.write_char_menu_dict[char_handle].addAction(v)
+                                self.write_char_actions_dict[char_handle][v].triggered.connect(self.check_which_triggered_write)
                 self.serv_separator_dict[key] = QAction()
                 self.serv_separator_dict[key].setSeparator(True)
                 self.menu.addAction(self.serv_separator_dict[key])
@@ -289,10 +292,11 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.menu.addAction(self.separator_etc)
         # NOTIFY
         self.notify_menu = self.menu.addMenu("Notify")
-        for char in self.esp32_device.notifiables.keys():
-            self.notify_char_menu_dict[char] = self.notify_menu.addMenu(char)
-            self.notify_char_actions_dict[char] = self.notify_char_menu_dict[char].addAction('Notify')
-            self.notify_char_actions_dict[char].triggered.connect(self.check_which_triggered)
+        for char_handle in self.esp32_device.notifiables_handles.keys():
+            char = self.esp32_device.notifiables_handles[char_handle]
+            self.notify_char_menu_dict[char_handle] = self.notify_menu.addMenu(char)
+            self.notify_char_actions_dict[char_handle] = self.notify_char_menu_dict[char_handle].addAction('Notify')
+            self.notify_char_actions_dict[char_handle].triggered.connect(self.check_which_triggered)
             # here trigger action --> set flag notify True, start Thread, callback notify ...
 
         self.notify_menu.addSeparator()
@@ -335,6 +339,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         # NOTIFIABLE
         self.char_to_notify = None
         self.chars_to_notify = []
+        self.chars_to_notify_handles = []
         self.notify_is_on = False
         self.notify_sound_is_on = False
         self.notify_loop = asyncio.new_event_loop()
@@ -358,29 +363,33 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def check_which_triggered(self, checked):
         action = self.sender()
-        for char in self.notify_char_actions_dict.keys():
-            if action == self.notify_char_actions_dict[char]:
-                if char not in self.chars_to_notify:
+        for char_handle in self.notify_char_actions_dict.keys():
+            char = self.esp32_device.notifiables_handles[char_handle]
+            if action == self.notify_char_actions_dict[char_handle]:
+                if char_handle not in self.chars_to_notify_handles:
                     self.log.info("Char: {} Notification Enabled".format(char))
                     self.char_to_notify = char
                     self.chars_to_notify.append(char)
+                    self.chars_to_notify_handles.append(char_handle)
                     action.setText('Stop Notification')
                     if self.main_server:
-                        self.main_server.send_message("start:{}".format(char))
+                        self.main_server.send_message("start:{}:{}".format(char_handle, char))
                     else:
                         self.start_notify_char()
                         self.notify_is_on = True
                 else:
                     self.log.info("Char: {} Notification Disabled".format(char))
                     self.chars_to_notify.remove(char)
-                    self.main_server.send_message("stop:{}".format(char))
+                    self.chars_to_notify_handles.remove(char_handle)
+                    self.main_server.send_message("stop:{}:{}".format(char_handle, char))
                     action.setText('Notify')
 
     def check_which_triggered_write(self, checked):
         action = self.sender()
-        for char in self.write_char_actions_dict.keys():
-            for write_action_key in self.write_char_actions_dict[char].keys():
-                if action == self.write_char_actions_dict[char][write_action_key]:
+        for char_handle in self.write_char_actions_dict.keys():
+            char = self.esp32_device.writeables_handles[char_handle]
+            for write_action_key in self.write_char_actions_dict[char_handle].keys():
+                if action == self.write_char_actions_dict[char_handle][write_action_key]:
                     xml_char = self.esp32_device.chars_xml[char]
                     self.log.info('Writing to {}'.format(char))
                     if 'Enumerations' in xml_char.fields[xml_char.name].keys():
@@ -390,26 +399,29 @@ class SystemTrayIcon(QSystemTrayIcon):
                             format = xml_char.fields[xml_char.name]['Ctype']
                             packed_val = struct.pack(format, val_to_write)
                             self.esp32_device.write_char(xml_char.name,
-                                                         data=packed_val)
+                                                         data=packed_val,
+                                                         handle=char_handle)
                             self.log.info('{}: {}'.format(char, write_action_key))
                         except Exception as e:
                             self.log.error(e)
 
     def refresh_menu(self, response):
+
         data = response
         if data == 'finished':
             self.log.info("MENU CALLBACK: THREAD FINISH RECEIVED")
             self.ready_to_exit = True
         elif data == 'disconnected':
             self.notify("Disconnection event", 'Device {} is now disconnected'.format(self.esp32_device.name))
-            for char in self.chars_to_notify:
-                self.notify_char_actions_dict[char].setText('Notify')
+            for char_handle in self.chars_to_notify_handles:
+                char = self.esp32_device.notifiables_handles[char_handle]
+                self.notify_char_actions_dict[char_handle].setText('Notify')
                 self.log.info("Char: {} Notification Disabled".format(char))
                 self.chars_to_notify.remove(char)
+                self.chars_to_notify_handles.remove(char_handle)
             self.device_status_action.setText('Status: Disconnected')
         elif data == 'disconnecting':
             self.device_status_action.setText('Status: Disconnecting...')
-
         elif isinstance(data, list):
             if data[0] == 'reconnect':
                 self.device_status_action.setText('Status: Reconnection in {} s'.format(29 - data[1]))
@@ -423,21 +435,23 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.device_status_action.setText('Status: Connected')
         elif data == 'timeupdate':
             self.last_update_action.setText("Last Update: {}".format(datetime.strftime(datetime.now(), "%H:%M:%S")))
+
         else:
             if not data:
                 pass
             else:
                 try:
-                    for char in data.keys():
+                    for char_handle in data.keys():
+                        char = self.esp32_device.readables_handles[char_handle]
                         # HANDLE SINGLE VALUES
-                        char_text = self.esp32_device.pformat_char_value(data[char],
+                        char_text = self.esp32_device.pformat_char_value(data[char_handle],
                                                                          char=char,
                                                                          rtn=True,
                                                                          prnt=False,
                                                                          one_line=True,
                                                                          only_val=True)
 
-                        self.char_actions_dict[char].setText(char_text)
+                        self.char_actions_dict[char_handle].setText(char_text)
                         if self.debug:
                             for serv in self.esp32_device.services_rsum.keys():
                                 if char in self.esp32_device.services_rsum[serv]:
@@ -461,12 +475,13 @@ class SystemTrayIcon(QSystemTrayIcon):
                     try:
                         if self._read_timeout == self._timeout_count:
                             data = {}
-                            for char in self.esp32_device.readables.keys():
-                                if char not in self.avoid_chars and char not in self.chars_to_notify:
+                            for char_handle in self.esp32_device.readables_handles.keys():
+                                char = self.esp32_device.readables_handles[char_handle]
+                                if char not in self.avoid_chars and char_handle not in self.chars_to_notify_handles:
                                     if self.quit_thread:
                                         break
                                     else:
-                                        data[char] = (self.esp32_device.get_char_value(char))
+                                        data[char_handle] = (self.esp32_device.get_char_value(char, handle=char_handle))
                             progress_callback.emit(data)
                             self._timeout_count = 0
                         else:
@@ -474,7 +489,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                                 progress_callback.emit('timeupdate')
                             else:
                                 raise DisconnectionError('Device {} disconnected'.format(self.esp32_device.name))
-                    except (TypeError,  DisconnectionError) as e:
+                    except (TypeError, DisconnectionError) as e:
                         self.log.error(e)
                         if self.esp32_device.is_connected():
                             self.log.info('Disconnecting...')
@@ -495,6 +510,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                                     except Exception as e:
                                         self.log.error('Disconnection timeout')
                                         time.sleep(5)
+
                         else:
                             self.log.info("THREAD MENU: Device disconnected")
                             progress_callback.emit('disconnected')
@@ -553,15 +569,16 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         data = response
         try:
-            for char in data.keys():
+            for char_handle in data.keys():
+                char = self.esp32_device.notifiables_handles[char_handle]
                 if char != 'Battery Power State':
-                    data_value = get_char_value(data[char], self.esp32_device.chars_xml[char])
+                    data_value = get_char_value(data[char_handle], self.esp32_device.chars_xml[char])
                     data_value_string = pformat_char_value(data_value,
                                                            rtn=True,
                                                            prnt=False,
                                                            one_line=True,
                                                            only_val=True)
-                    self.char_actions_dict[char].setText(
+                    self.char_actions_dict[char_handle].setText(
                         "{}: {}".format(char, data_value_string))
                     for serv in self.esp32_device.services_rsum.keys():
                         if char in self.esp32_device.services_rsum[serv]:
@@ -574,7 +591,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                             if char in self.esp32_device.services_rsum[serv]:
                                 self.log.info("Notification: {} [{}] : {}".format(serv, char, data_value_string))
                 else:
-                    data_value = get_char_value(data[char], self.esp32_device.chars_xml[char])
+                    data_value = get_char_value(data[char_handle], self.esp32_device.chars_xml[char])
                     self.esp32_device.batt_power_state = self.esp32_device.map_powstate(data_value['State']['Value'])
                     for state, value in self.esp32_device.batt_power_state.items():
                         self.battery_power_state_actions_dict[state].setText("{}: {}".format(state, value))
@@ -596,20 +613,21 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def subscribe_notify(self, progress_callback):  # run in thread
 
-        def readnotify_callback(sender, data, callb=progress_callback):
+        def readnotify_callback(sender_handle, data, sender_uuid, callb=progress_callback):
 
-            char = ble_char_dict[cb_uuid_to_str(sender)]
+            char = ble_char_dict[cb_uuid_to_str(sender_uuid)]
             try:
-                data_dict = {char: data}
+                data_dict = {sender_handle: data}
                 callb.emit(data_dict)
+                # print("Char Notifiaction: {}".format(char))
             except Exception as e:
                 self.log.error(e)
 
         async def as_char_notify(notify_callback=readnotify_callback):
             aio_client_r, aio_client_w = await asyncio.open_connection('localhost', self.port)
             aio_client_w.write('started'.encode())
-            for char in self.chars_to_notify:
-                await self.esp32_device.ble_client.start_notify(ble_char_dict_rev[char], notify_callback)
+            for char_handle in self.chars_to_notify_handles:
+                await self.esp32_device.ble_client.start_notify(char_handle, notify_callback)
             await asyncio.sleep(1)
             while True:
                 data = await aio_client_r.read(1024)
@@ -618,24 +636,27 @@ class SystemTrayIcon(QSystemTrayIcon):
                 if message == 'exit':
                     aio_client_w.write('ok'.encode())
                     self.log.info('NOTIFY_THREAD: {}'.format("Stopping notification now..."))
-                    for char in self.chars_to_notify:
-                        await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[char])
+                    for char_handle in self.chars_to_notify_handles:
+                        await self.esp32_device.ble_client.stop_notify(char_handle)
                     aio_client_w.close()
                     self.log.info('NOTIFY_THREAD: {}'.format("Done!"))
                     self.char_to_notify = None
                     break
                 else:
-                    action, char = message.split(':')
+                    action, char_handle_str, char = message.split(':')
+                    char_handle = int(char_handle_str)
+                    # char = self.esp32_device.notifiables_handles[char_handle]
                     if action == 'start':
-                        await self.esp32_device.ble_client.start_notify(ble_char_dict_rev[char], notify_callback)
+                        await self.esp32_device.ble_client.start_notify(char_handle, notify_callback)
                     if action == 'stop':
-                        await self.esp32_device.ble_client.stop_notify(ble_char_dict_rev[char])
+                        await self.esp32_device.ble_client.stop_notify(char_handle)
                     await asyncio.sleep(1)
 
         # GET NEW EVENT LOOP AND RUN
         try:
             asyncio.set_event_loop(self.notify_loop)
             self.notify_loop.run_until_complete(as_char_notify())
+
         except Exception as e:
             self.log.error('NOTIFY_THREAD: {}'.format(e))
         self.log.info('NOTIFY_THREAD: {}'.format("THREAD FINISHED"))
