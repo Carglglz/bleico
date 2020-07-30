@@ -490,7 +490,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                             else:
                                 raise DisconnectionError('Device {} disconnected'.format(self.esp32_device.name))
                     except (TypeError, DisconnectionError) as e:
-                        self.log.error(e)
+                        self.log.error("Char: {}, Error: {}".format(char, e))
                         if self.esp32_device.is_connected():
                             self.log.info('Disconnecting...')
                             progress_callback.emit('disconnecting')
@@ -518,7 +518,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                             connect_loop = True
                             time.sleep(4)
                     except Exception as e:
-                        self.log.error(e)
+                        self.log.error("Char: {}, Error: {}".format(char, e))
                         progress_callback.emit(False)
                         if self.esp32_device.is_connected():
                             pass

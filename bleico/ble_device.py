@@ -200,37 +200,33 @@ class BASE_BLE_DEVICE:
                     self.services_rsum_handles[service.description].append(char.handle)
                     if "read" in char.properties:
                         try:
-                            self.readables[ble_char_dict[char.uuid]] = char.uuid
-                            self.readables_handles[char.handle] = ble_char_dict[char.uuid]
-                        except Exception:
                             self.readables[char.description] = char.uuid
                             self.readables_handles[char.handle] = char.description
+                        except Exception as e:
+                            print(e)
 
                     if "notify" in char.properties:
                         try:
-                            self.notifiables[ble_char_dict[char.uuid]] = char.uuid
-                            self.notifiables_handles[char.handle] = ble_char_dict[char.uuid]
-                        except Exception:
                             self.notifiables[char.description] = char.uuid
                             self.notifiables_handles[char.handle] = char.description
+                        except Exception as e:
+                            print(e)
 
                     if "write" in char.properties:
                         try:
-                            self.writeables[ble_char_dict[char.uuid]] = char.uuid
-                            self.writeables_handles[char.handle] = ble_char_dict[char.uuid]
-                        except Exception as e:
                             self.writeables[char.description] = char.uuid
                             self.writeables_handles[char.handle] = char.description
+                        except Exception as e:
+                            print(e)
                     try:
-                        self.services[service.description]['CHARS'][char.uuid] = {ble_char_dict[char.uuid]: ",".join(
-                            char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
-                    except Exception as e:
                         self.services[service.description]['CHARS'][char.uuid] = {char.description: ",".join(
                             char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
+                    except Exception as e:
+                        print(e)
 
-                    self.chars_desc_rsum[ble_char_dict[char.uuid]] = {}
+                    self.chars_desc_rsum[char.description] = {}
                     for descriptor in char.descriptors:
-                        self.chars_desc_rsum[ble_char_dict[char.uuid]][ble_descriptors_dict[descriptor.uuid]] = descriptor.handle
+                        self.chars_desc_rsum[char.description][descriptor.description] = descriptor.handle
                 if log:
                     if is_NUS:
                         print("\t[Characteristic] {0}: ({1}) | Name: {2}".format(
@@ -240,18 +236,16 @@ class BASE_BLE_DEVICE:
                         try:
                             print("\t[Characteristic] {0}: ({1}) | Name: {2}".format(
                                 char.uuid, ",".join(
-                                    char.properties), ble_char_dict[char.uuid]))
-                        except Exception as e:
-                            print("\t[Characteristic] {0}: ({1}) | Name: {2}".format(
-                                char.uuid, ",".join(
                                     char.properties), char.description))
+                        except Exception as e:
+                            print(e)
 
                 if log:
                     for descriptor in char.descriptors:
                         print(
                             "\t\t[Descriptor] [{0}]: {1} (Handle: {2}) ".format(
                                 descriptor.uuid,
-                                ble_descriptors_dict[descriptor.uuid],
+                                descriptor.description,
                                 descriptor.handle
                             )
                         )
@@ -270,7 +264,6 @@ class BASE_BLE_DEVICE:
                 return bytes(data+'\r', 'utf-8')
             else:
                 return bytes(data, 'utf-8')
-
 
     async def as_read_descriptor(self, handle):
         return bytes(await self.ble_client.read_gatt_descriptor(handle))
@@ -827,7 +820,7 @@ class BLE_DEVICE(BASE_BLE_DEVICE):
                 try:
                     appearance_info = self.get_char_value(APPR)
                     self.appearance = appearance_info['Category']['Value']
-                    self.appearance_tag = '_'.join([tag.upper() for tag in self.appearance.split()])
+                    self.appearance_tag = '_'.join([tag.upper().replace(':', '') for tag in self.appearance.split()])
                     self.device_info[APPR] = self.appearance
                 except Exception as e:
                     print(traceback.format_exc())
