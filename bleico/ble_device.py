@@ -707,6 +707,24 @@ class BLE_DEVICE(BASE_BLE_DEVICE):
                                  debug=debug)
         return f_value
 
+    def pformat_field_value(self, field_data, field='', sep=',', prnt=True,
+                            rtn=False):
+
+        try:
+            field_string_values = ["{} {}".format(field_data['Value'], field_data['Symbol'])]
+        except Exception as e:
+            field_string_values = ["{}".format(field_data['Value'])]
+        if field:
+            if prnt:
+                print('{}: {}'.format(field, sep.join(field_string_values)))
+            elif rtn:
+                return '{}: {}'.format(field, sep.join(field_string_values))
+        else:
+            if prnt:
+                print(sep.join(field_string_values))
+            elif rtn:
+                return sep.join(field_string_values)
+
     def pformat_char_value(self, data, char='', only_val=False, one_line=False,
                            sep=',', custom=None, symbols=True, prnt=True,
                            rtn=False):

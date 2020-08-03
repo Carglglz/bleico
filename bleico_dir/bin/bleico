@@ -21,21 +21,25 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
 import sys
+import ast
 import bleico
 from bleico.socket_client_server import socket_server
 from bleak.backends.corebluetooth.utils import cb_uuid_to_str
-from bleak.utils import get_char_value, pformat_char_value
+from bleak.utils import get_char_value, pformat_char_value, get_xml_char
 import os
 import argparse
 from bleico.ble_device import BLE_DEVICE  # get own ble_device
-from bleico.chars import ble_char_dict, ble_char_dict_rev  # get own chars
 from bleico.devtools import store_dev, load_dev  # get own devtools
+from bleak.uuids import uuidstr_to_str
 from datetime import datetime
 import time
 import struct
 from PyQt5.QtGui import QIcon, QPixmap
-from PyQt5.QtWidgets import QApplication, QSystemTrayIcon, QMenu, QAction, QSplashScreen
-from PyQt5.QtCore import QObject, QRunnable, QThreadPool, pyqtSignal, pyqtSlot, Qt
+from PyQt5.QtWidgets import (QApplication, QSystemTrayIcon, QMenu, QAction,
+                             QSplashScreen, QWidget, QPushButton,
+                             QComboBox, QVBoxLayout, QLabel, QLineEdit)
+from PyQt5.QtCore import (QObject, QRunnable, QThreadPool, pyqtSignal,
+                          pyqtSlot, Qt)
 from PyQt5.QtMultimedia import QSound
 from argcomplete.completers import ChoicesCompleter
 import traceback
@@ -216,7 +220,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.menu.addAction(self.separator)
         # SERVICES
         # AVOID READ CHARS
-        self.special_formats = ['utf8', 'utf8s', 'bytemask']
         self.avoid_chars = ['Appearance', 'Manufacturer Name String',
                             'Battery Power State', 'Model Number String',
                             'Firmware Revision String']
@@ -245,6 +248,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.write_char_menu_dict = {}
         self.write_char_actions_dict = {}
         self.battery_power_state_actions_dict = {}
+        self.char_fields_actions_dict = {}
         for key, serv in self.serv_actions_dict.items():
             if key == 'Device Information':
                 self.devinfo_menu = self.menu.addMenu(key)
@@ -268,18 +272,49 @@ class SystemTrayIcon(QSystemTrayIcon):
                                 self.char_actions_dict[char_handle] = self.menu.addMenu(char)
                                 self.char_actions_dict[char_handle].addAction(self.esp32_device.device_info[char])
                         else:
-                            # HERE DIVIDE CHARS INTO SINGLE/FEATURES/MULTIPLE, READ CHAR --> CLASSIFY [A,B,C...]
-                            self.char_actions_dict[char_handle] = QAction("{}: ? ua".format(char))
-                            self.menu.addAction(self.char_actions_dict[char_handle])
+                            # HERE DIVIDE CHARS INTO SINGLE/FEATURES/MULTIPLE
+                            # SINGLE FIELD CHARACTERISTIC
+                            if len(self.esp32_device.chars_xml[char].fields) == 1:
+                                self.char_actions_dict[char_handle] = QAction("{}: ? ua".format(char))
+                                self.menu.addAction(self.char_actions_dict[char_handle])
+
+                            # MULTIPLE FIELDS CHARACTERISTIC
+                            elif len(self.esp32_device.chars_xml[char].fields) > 1:
+                                self.char_actions_dict[char_handle] = self.menu.addMenu(char)
+                                self.char_fields_actions_dict[char_handle] = {}
+                                for field in self.esp32_device.chars_xml[char].fields:
+                                    self.char_fields_actions_dict[char_handle][field] = self.char_actions_dict[char_handle].addAction(field)
+
                     if char_handle in self.esp32_device.writeables_handles.keys():
                         char = self.esp32_device.writeables_handles[char_handle]
                         self.write_char_menu_dict[char_handle] = self.menu.addMenu(char)
                         xml_char = self.esp32_device.chars_xml[char]
-                        if 'Enumerations' in xml_char.fields[xml_char.name].keys():
+                        if len(xml_char.fields) == 1:
+                            for field in xml_char.fields:
+                                if 'Enumerations' in xml_char.fields[field].keys():
+                                    self.write_char_actions_dict[char_handle] = {}
+                                    for k, v in xml_char.fields[field]['Enumerations'].items():
+                                        self.write_char_actions_dict[char_handle][v] = self.write_char_menu_dict[char_handle].addAction(v)
+                                        self.write_char_actions_dict[char_handle][v].triggered.connect(self.check_which_triggered_write)
+                                else:
+                                    # SET VALUE
+                                    self.write_char_actions_dict[char_handle] = {}
+                                    self.write_char_actions_dict[char_handle]["set_value"] = self.write_char_menu_dict[char_handle].addAction(
+                                        "Set Value")
+                                    self.write_char_actions_dict[char_handle]["set_value"].triggered.connect(
+                                        self.check_which_triggered_write)
+                                    self.write_char_actions_dict[char_handle]["set_value_box"] = SET_VALUE_BOX(
+                                        char=xml_char, char_handle=char_handle, log=self.log, dev=self.esp32_device)
+                        else:
+                            # SET VALUE
                             self.write_char_actions_dict[char_handle] = {}
-                            for k, v in xml_char.fields[xml_char.name]['Enumerations'].items():
-                                self.write_char_actions_dict[char_handle][v] = self.write_char_menu_dict[char_handle].addAction(v)
-                                self.write_char_actions_dict[char_handle][v].triggered.connect(self.check_which_triggered_write)
+                            self.write_char_actions_dict[char_handle]["set_value"] = self.write_char_menu_dict[char_handle].addAction(
+                                "Set Value")
+                            self.write_char_actions_dict[char_handle]["set_value"].triggered.connect(
+                                self.check_which_triggered_write)
+                            self.write_char_actions_dict[char_handle]["set_value_box"] = SET_VALUE_BOX(
+                                char=xml_char, char_handle=char_handle, log=self.log, dev=self.esp32_device)
+
                 self.serv_separator_dict[key] = QAction()
                 self.serv_separator_dict[key].setSeparator(True)
                 self.menu.addAction(self.serv_separator_dict[key])
@@ -387,18 +422,31 @@ class SystemTrayIcon(QSystemTrayIcon):
                 if action == self.write_char_actions_dict[char_handle][write_action_key]:
                     xml_char = self.esp32_device.chars_xml[char]
                     self.log.info('Writing to {}'.format(char))
-                    if 'Enumerations' in xml_char.fields[xml_char.name].keys():
-                        try:
-                            map_write_values = {v: int(k) for k, v in xml_char.fields[xml_char.name]['Enumerations'].items()}
-                            val_to_write = map_write_values[write_action_key]
-                            format = xml_char.fields[xml_char.name]['Ctype']
-                            packed_val = struct.pack(format, val_to_write)
-                            self.esp32_device.write_char(xml_char.name,
-                                                         data=packed_val,
-                                                         handle=char_handle)
-                            self.log.info('{}: {}'.format(char, write_action_key))
-                        except Exception as e:
-                            self.log.error(e)
+                    if len(xml_char.fields) == 1:
+                        format = ""
+                        val_to_write = []
+                        for field in xml_char.fields:
+                            if 'Unit' not in xml_char.fields[field].keys() and 'Enumerations' in xml_char.fields[field].keys():
+                                try:
+                                    map_write_values = {v: int(k) for k, v in xml_char.fields[field]['Enumerations'].items()}
+                                    val_to_write.append(map_write_values[write_action_key])
+                                    format += xml_char.fields[field]['Ctype']
+                                    self.log.info('{}: {}'.format(char, write_action_key))
+                                except Exception as e:
+                                    self.log.error(e)
+                                try:
+                                    packed_val = struct.pack(format, *val_to_write)
+                                    self.esp32_device.write_char(xml_char.name,
+                                                                 data=packed_val,
+                                                                 handle=char_handle)
+                                except Exception as e:
+                                    self.log.error(e)
+                            else:
+                                self.log.info('Showing {} Set Value Control'.format(char))
+                                self.write_char_actions_dict[char_handle]["set_value_box"].show()
+                    else:
+                        self.log.info('Showing {} Set Value Control'.format(char))
+                        self.write_char_actions_dict[char_handle]["set_value_box"].show()
 
     def refresh_menu(self, response):
 
@@ -439,25 +487,48 @@ class SystemTrayIcon(QSystemTrayIcon):
                     for char_handle in data.keys():
                         char = self.esp32_device.readables_handles[char_handle]
                         # HANDLE SINGLE VALUES
-                        char_text = self.esp32_device.pformat_char_value(data[char_handle],
-                                                                         char=char,
-                                                                         rtn=True,
-                                                                         prnt=False,
-                                                                         one_line=True,
-                                                                         only_val=True)
+                        if len(self.esp32_device.chars_xml[char].fields) == 1:
+                            char_text = self.esp32_device.pformat_char_value(data[char_handle],
+                                                                             char=char,
+                                                                             rtn=True,
+                                                                             prnt=False,
+                                                                             one_line=True,
+                                                                             only_val=True)
 
-                        self.char_actions_dict[char_handle].setText(char_text)
-                        if self.debug:
-                            for serv in self.esp32_device.services_rsum.keys():
-                                if char in self.esp32_device.services_rsum[serv]:
-                                    self.log.info("[{}] {}".format(serv, char_text))
+                            self.char_actions_dict[char_handle].setText(char_text)
+                            if self.debug:
+                                for serv in self.esp32_device.services_rsum.keys():
+                                    if char in self.esp32_device.services_rsum[serv]:
+                                        self.log.info("[{}] {}".format(serv, char_text))
+                        elif len(self.esp32_device.chars_xml[char].fields) > 1:
+                            for field in self.esp32_device.chars_xml[char].fields:
+                                # NORMAL FIELD
+                                if field in data[char_handle]:
+                                    if "Reference" not in self.esp32_device.chars_xml[char].fields[field]:
+                                        field_val = self.esp32_device.pformat_field_value(data[char_handle][field],
+                                                                                         rtn=True,
+                                                                                         prnt=False)
+                                    else:
+                                        # REFERENCE FIELD
+                                        reference = self.esp32_device.chars_xml[char].fields[field]["Reference"]
+                                        field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference][field],
+                                                                                         rtn=True,
+                                                                                         prnt=False)
+                                    field_text = "{}: {}".format(field, field_val)
+                                    self.char_fields_actions_dict[char_handle][field].setText(field_text)
+                                    if self.debug:
+                                        for serv in self.esp32_device.services_rsum.keys():
+                                            if char in self.esp32_device.services_rsum[serv]:
+                                                self.log.info("[{}] {} {}".format(serv, char, field_text))
+
+                                # REFERENCE FIELD
                         # TODO: HANDLE BITFLAGS
                         # TODO: HANDLE MULTIPLE VALUES
                     self.last_update_action.setText("Last Update: {}".format(datetime.strftime(datetime.now(), "%H:%M:%S")))
                     self.device_status_action.setText('Status: Connected')
                 except Exception as e:
                     if self.debug:
-                        self.log.error(e)
+                        self.log.error(traceback.format_exc())
 
     def update_menu(self, progress_callback):  # define the notify callback inside that takes progress_callback as variable
         connect_loop = False
@@ -610,7 +681,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         def readnotify_callback(sender_handle, data, sender_uuid, callb=progress_callback):
 
-            char = ble_char_dict[cb_uuid_to_str(sender_uuid)]
+            char = uuidstr_to_str(cb_uuid_to_str(sender_uuid))
             try:
                 data_dict = {sender_handle: data}
                 callb.emit(data_dict)
@@ -718,9 +789,12 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.log.info('Shutdown pending tasks...')
         try:
             self.quit_thread = True
-            self.main_server.send_message('exit')
-            self.main_server.recv_message()
-            self.main_server.serv_soc.close()
+            if self.main_server:
+                self.main_server.send_message('exit')
+                self.main_server.recv_message()
+                self.main_server.serv_soc.close()
+            else:
+                time.sleep(0.5)
         except Exception as e:
             self.quit_thread = True
             self.log.error(e)
@@ -745,6 +819,100 @@ class SystemTrayIcon(QSystemTrayIcon):
         sys.exit()
 
 
+class SET_VALUE_BOX(QWidget):
+    def __init__(self, char=None, char_handle=None, log=None, dev=None):
+        super().__init__()
+        self.char = char
+        self.char_handle = char_handle
+        self.layout = QVBoxLayout()
+        self.label_fields = {}
+        self.line_fields = {}
+        self.combo_fields = {}
+        self.format_fields = {}
+        self.value_fields = {}
+        self.global_format = ""
+        self.log = log
+        self.dev = dev
+
+        # GET REFERENCES
+        for field in self.char.fields:
+            if 'Reference' in self.char.fields[field]:
+                ref_char = get_xml_char(self.char.fields[field]['Reference'])
+                if len(ref_char.fields) == 1:
+                    for ref_field in ref_char.fields:
+                        self.char.fields[field] = ref_char.fields[ref_field]
+                else:
+                    self.char.fields.pop(field)
+                    for ref_field in ref_char.fields:
+                        self.char.fields[ref_field] = ref_char.fields[ref_field]
+
+        # FIELD LABELS
+        for field in self.char.fields:
+            if 'Unit' in self.char.fields[field] and self.char.fields[field]['Unit'] != 'unitless':
+                self.label_fields[field] = QLabel("{} ({})".format(field,
+                                                                   self.char.fields[field]['Symbol']))
+            else:
+                self.label_fields[field] = QLabel(field)
+            self.format_fields[field] = self.char.fields[field]['Ctype']
+            self.label_fields[field].setAlignment(Qt.AlignLeft)
+            if 'Unit' in self.char.fields[field]:
+                self.line_fields[field] = QLineEdit()
+                self.layout.addWidget(self.label_fields[field])
+                self.layout.addWidget(self.line_fields[field])
+            elif 'Enumerations' in self.char.fields[field]:
+                self.combo_fields[field] = QComboBox()
+                self.combo_fields[field].addItems(list(self.char.fields[field]['Enumerations'].values()))
+                self.layout.addWidget(self.label_fields[field])
+                self.layout.addWidget(self.combo_fields[field])
+
+        # Create a button in the window
+        self.button_config = QPushButton('Set')
+        self.button_config.move(20, 80)
+        self.button_config.clicked.connect(self.on_push)
+        self.layout.addWidget(self.button_config)
+
+        self.setLayout(self.layout)
+        self.setWindowTitle("Set {} Value".format(self.char.name))
+
+    def on_push(self):
+        self.log.info('Setting {} Value to:'.format(self.char.name))
+        self.global_format = ""
+        for field in self.char.fields:
+            if field in self.line_fields:
+                text = self.line_fields[field].text()
+
+                formatted_value = ast.literal_eval(text)
+                if "Multiplier" in self.char.fields[field]:
+                    formatted_value *= (1/self.char.fields[field]["Multiplier"])
+                if "DecimalExponent" in self.char.fields[field]:
+                    formatted_value /= (10 ** (self.char.fields[field]["DecimalExponent"]))
+                if "BinaryExponent" in self.char.fields[field]:
+                    formatted_value *= (1 / 2 ** (self.char.fields[field]["BinaryExponent"]))
+
+                # encoded_value = struct.pack(self.format_fields[field], int(formatted_value))
+                self.value_fields[field] = int(formatted_value)
+                self.global_format += self.format_fields[field]
+                self.log.info('Value: {} {}'.format(text, self.char.fields[field]['Symbol']))
+            elif field in self.combo_fields:
+                text = self.combo_fields[field].currentText()
+                map_write_values = {v: int(k) for k, v in self.char.fields[field]['Enumerations'].items()}
+                # encoded_value = struct.pack(self.format_fields[field], int(map_write_values[text]))
+                self.value_fields[field] = int(map_write_values[text])
+                self.global_format += self.format_fields[field]
+                self.log.info('Value: {} {}'.format(int(map_write_values[text]),
+                                                               text))
+
+        final_encoded_value = struct.pack(self.global_format, *tuple(self.value_fields.values()))
+        # self.log.info('Final Values: {}'.format(tuple(self.value_fields.values())))
+        # self.log.info('Bytes: {}'.format(final_encoded_value))
+        try:
+
+            self.dev.write_char(self.char.name,
+                                data=final_encoded_value,
+                                handle=self.char_handle)
+        except Exception as e:
+            self.log.error(e)
+        self.hide()
 #############################################
 
 
