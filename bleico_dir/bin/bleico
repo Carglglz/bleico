@@ -287,9 +287,9 @@ class SystemTrayIcon(QSystemTrayIcon):
 
                     if char_handle in self.esp32_device.writeables_handles.keys():
                         char = self.esp32_device.writeables_handles[char_handle]
-                        self.write_char_menu_dict[char_handle] = self.menu.addMenu(char)
                         xml_char = self.esp32_device.chars_xml[char]
                         if len(xml_char.fields) == 1:
+                            self.write_char_menu_dict[char_handle] = self.menu.addMenu("Set {}".format(char))
                             for field in xml_char.fields:
                                 if 'Enumerations' in xml_char.fields[field].keys():
                                     self.write_char_actions_dict[char_handle] = {}
@@ -308,8 +308,14 @@ class SystemTrayIcon(QSystemTrayIcon):
                         else:
                             # SET VALUE
                             self.write_char_actions_dict[char_handle] = {}
-                            self.write_char_actions_dict[char_handle]["set_value"] = self.write_char_menu_dict[char_handle].addAction(
-                                "Set Value")
+                            if char_handle in self.char_actions_dict:
+                                self.char_actions_dict[char_handle].addSeparator()
+                                self.write_char_actions_dict[char_handle]["set_value"] = self.char_actions_dict[char_handle].addAction(
+                                    "Set Value")
+                            else:
+                                self.write_char_menu_dict[char_handle] = self.menu.addMenu(char)
+                                self.write_char_actions_dict[char_handle]["set_value"] = self.write_char_menu_dict[char_handle].addAction(
+                                    "Set Value")
                             self.write_char_actions_dict[char_handle]["set_value"].triggered.connect(
                                 self.check_which_triggered_write)
                             self.write_char_actions_dict[char_handle]["set_value_box"] = SET_VALUE_BOX(
