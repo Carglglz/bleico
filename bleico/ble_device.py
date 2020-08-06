@@ -20,6 +20,7 @@ logging.getLogger('asyncio').setLevel(logging.WARNING)
 
 import asyncio
 import struct
+from datetime import datetime
 from bleak import BleakClient
 from bleak import discover
 from bleico.chars import ble_char_dict
@@ -708,22 +709,46 @@ class BLE_DEVICE(BASE_BLE_DEVICE):
         return f_value
 
     def pformat_field_value(self, field_data, field='', sep=',', prnt=True,
-                            rtn=False):
+                            rtn=False, timestamp=False):
 
-        try:
-            field_string_values = ["{} {}".format(field_data['Value'], field_data['Symbol'])]
-        except Exception as e:
-            field_string_values = ["{}".format(field_data['Value'])]
-        if field:
-            if prnt:
-                print('{}: {}'.format(field, sep.join(field_string_values)))
-            elif rtn:
-                return '{}: {}'.format(field, sep.join(field_string_values))
+        if not timestamp:
+            try:
+                field_string_values = ["{} {}".format(field_data['Value'], field_data['Symbol'])]
+            except Exception as e:
+                if 'RR-Interval' in field_data:
+                    field_interval_data = field_data['RR-Interval']
+                    field_string_values = ['{} {}'.format(field_interval_data[interval]['Value'],
+                                                          field_interval_data[interval]['Symbol']) for interval in field_interval_data]
+                else:
+                    field_string_values = ["{}".format(field_data['Value'])]
+            if field:
+                if prnt:
+                    print('{}: {}'.format(field, sep.join(field_string_values)))
+                elif rtn:
+                    return '{}: {}'.format(field, sep.join(field_string_values))
+            else:
+                if prnt:
+                    print(sep.join(field_string_values))
+                elif rtn:
+                    return sep.join(field_string_values)
         else:
-            if prnt:
-                print(sep.join(field_string_values))
-            elif rtn:
-                return sep.join(field_string_values)
+            field_values = []
+            for dt in field_data:
+                if field_data[dt]['Unit'] == 'month':
+                    dtm = datetime.strptime(field_data[dt]['Value'], '%B')
+                    val = dtm.month
+                else:
+                    val = field_data[dt]['Value']
+                field_values.append(val)
+            try:
+                date_string = datetime.strftime(datetime(*field_values), "%Y-%m-%d %H:%M:%S")
+                if prnt:
+                    print(date_string)
+                elif rtn:
+                    return date_string
+            except Exception as e:
+                print(e)
+                return None
 
     def pformat_char_value(self, data, char='', only_val=False, one_line=False,
                            sep=',', custom=None, symbols=True, prnt=True,
@@ -921,3 +946,32 @@ class BLE_DEVICE(BASE_BLE_DEVICE):
 
         else:
             pass
+
+    def get_plain_format(self, field):
+        """Iterates until the last level where Value is"""
+        val = ""
+        for k in field:
+            if 'Value' in field[k]:
+                try:
+                    val += "{}: {} {} ; ".format(k, field[k]['Value'],  field[k]['Symbol'])
+                except Exception as e:
+                    val += "{}: {} ; ".format(k, field[k]['Value'])
+            else:
+                val += self.get_plain_format(field[k])
+        if val != "":
+            return val
+
+    def pformat_ref_char_value(self, char_value, rtn=False):
+        for field in char_value:
+            if 'Value' in char_value[field]:
+                if not rtn:
+                    print(field, char_value[field]['Value'])
+                else:
+                    return '{} {}'.format(field, char_value[field]['Value'])
+            else:
+                # iterate function
+                val = self.get_plain_format(char_value[field])
+                if not rtn:
+                    print("{}: {}".format(field, val))
+                else:
+                    return "{}: {}".format(field, val)
