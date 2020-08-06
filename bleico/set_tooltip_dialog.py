@@ -1,7 +1,7 @@
 # @Author: carlosgilgonzalez
 # @Date:   2020-08-06T04:12:46+01:00
 # @Last modified by:   carlosgilgonzalez
-# @Last modified time: 2020-08-06T18:34:21+01:00
+# @Last modified time: 2020-08-06T20:55:29+01:00
 
 # from https://stackoverflow.com/questions/50666680/python-checkbox-selection-in-qlistview
 
