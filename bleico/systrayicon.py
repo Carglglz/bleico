@@ -134,7 +134,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self._timeout_count = read_timeout - 1
         # SPLASH SCREEN
         # Splash Screen
-        self.splash_pix = QPixmap(SRC_PATH+"/bleico.png", 'PNG')
+        self.splash_pix = QPixmap(os.path.join(SRC_PATH, "bleico.png"), 'PNG')
         self.scaled_splash = self.splash_pix.scaled(
             512, 512, Qt.KeepAspectRatio, transformMode=Qt.SmoothTransformation)
         self.splash = QSplashScreen(
@@ -164,9 +164,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.splash.clearMessage()
         # Create the menu
         if "{}.png".format(self.esp32_device.appearance_tag) not in os.listdir(SRC_PATH):
-            self.app_icon = QIcon(SRC_PATH+"/UNKNOWN.png")
+            self.app_icon = QIcon(os.path.join(SRC_PATH, "UNKNOWN.png"))
         else:
-            self.app_icon = QIcon(SRC_PATH+"/{}.png".format(self.esp32_device.appearance_tag))
+            self.app_icon = QIcon(os.path.join(SRC_PATH, "{}.png".format(self.esp32_device.appearance_tag)))
         self.app_icon.setIsMask(True)
         self.setIcon(self.app_icon)
         self.splash.showMessage("Device {} found".format(self.esp32_device.name),
@@ -365,7 +365,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.notify_type_icon = {'Info': QSystemTrayIcon.Information,
                                  'Warning': QSystemTrayIcon.Warning,
                                  'Critical': QSystemTrayIcon.Critical}
-        self.notify_sound = QSound(SRC_PATH_SOUND + "/definite.wav")
+        self.notify_sound = QSound(os.path.join(SRC_PATH_SOUND, "definite.wav"))
 
         # Disconnection callback
         self.esp32_device.set_disconnected_callback(self.esp32_device.disconnection_callback)

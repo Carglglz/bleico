@@ -61,21 +61,21 @@ parser.add_argument('-dslev',
                     default='info').completer = ChoicesCompleter(log_levs)
 args = parser.parse_args()
 
-SRC_PATH = bleico.__path__[0] + '/icons'
-SRC_PATH_SOUND = bleico.__path__[0] + '/sounds'
+SRC_PATH = os.path.join(bleico.__path__[0], 'icons')
+SRC_PATH_SOUND = os.path.join(bleico.__path__[0], 'sounds')
 
 #############################################
 
 
-if '.blewiz' not in os.listdir("{}".format(os.environ['HOME'])):
-    os.mkdir("{}/.blewiz".format(os.environ['HOME']))
+if '.blewiz' not in os.listdir(os.environ['HOME']):
+    os.mkdir(os.path.join(os.environ['HOME'], ".blewiz"))
 # Config device option
 if args.m == 'config':
     if args.t is None:
         print('Target uuid required, see -t')
         sys.exit()
     store_dev('bleico_', uuid=args.t, read_timeout=args.r,
-              dir="{}/.blewiz".format(os.environ['HOME']))
+              dir=os.path.join(os.environ['HOME'], ".blewiz"))
 
     print('bleico device settings saved in .blewiz directory!')
     sys.exit()
@@ -97,7 +97,7 @@ $$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
     print('*'*60)
 
     config_file_name = 'bleico_.config'
-    config_file_path = "{}/.blewiz".format(os.environ['HOME'])
+    config_file_path = os.path.join(os.environ['HOME'], ".blewiz")
     device_is_configurated = config_file_name in os.listdir(config_file_path)
     # Logging Setup
 
@@ -131,7 +131,7 @@ def main():
 
     # Create the icon
 
-    icon = QIcon(SRC_PATH+"/UNKNOWN.png")
+    icon = QIcon(os.path.join(SRC_PATH, "UNKNOWN.png"))
     icon.setIsMask(True)
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
                               logger=log, debug=args.debug,

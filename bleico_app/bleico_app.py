@@ -34,8 +34,8 @@ else:
         bundle_dir = os.path.dirname(os.path.abspath(__file__))
 
 
-SRC_PATH = bundle_dir + '/icons'
-SRC_PATH_SOUND = bundle_dir + '/sounds'
+SRC_PATH = os.path.join(bundle_dir, 'icons')
+SRC_PATH_SOUND = os.path.join(bundle_dir, 'sounds')
 
 
 #############################################
@@ -55,7 +55,7 @@ print(banner)
 print('*'*60)
 
 config_file_name = 'bleico_.config'
-config_file_path = "{}/.blewiz".format(os.environ['HOME'])
+config_file_path = os.path.join(os.environ['HOME'], ".blewiz")
 device_is_configurated = config_file_name in os.listdir(config_file_path)
 # Logging Setup
 
@@ -87,7 +87,7 @@ def main():
             sys.exit()
     # Create the icon
 
-    icon = QIcon(SRC_PATH+"/UNKNOWN.png")
+    icon = QIcon(os.path.join(SRC_PATH, "UNKNOWN.png"))
     icon.setIsMask(True)
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
                               logger=log, debug=True,
