@@ -187,6 +187,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.avoid_chars = ['Appearance', 'Manufacturer Name String',
                             'Battery Power State', 'Model Number String',
                             'Firmware Revision String']
+        self.avoid_field_strings = ['Measurement', 'Value', 'String',
+                                    '(uint8)', '(uint16)']
 
         self.serv_menu = self.menu.addMenu("Services")
         if self.debug:
@@ -656,7 +658,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                             "{}: {}".format(char, data_value_string))
                         # SAVE FOR TOOLTIP
                         for field in self.esp32_device.chars_xml[char].fields:
-                            self.tooltip_h_ch_field_values_dict[char_handle][char][field] = "{}: {}".format(char, data_value_string)
+                            self.tooltip_h_ch_field_values_dict[char_handle][char][field] = "{}: {}".format(field, data_value_string)
                     else:
                         field_strings = []
                         for field in self.esp32_device.chars_xml[char].fields:
@@ -805,7 +807,11 @@ class SystemTrayIcon(QSystemTrayIcon):
         tooltip_string_list = []
         for fld in self.checklist_choices:
             _char, _field, _handle = *fld.split(':')[:-1], int(fld.split(':')[-1])
-            tooltip_string_list.append(self.tooltip_h_ch_field_values_dict[_handle][_char][_field])
+            _field_value_string = self.tooltip_h_ch_field_values_dict[_handle][_char][_field]
+            for string_to_avoid in self.avoid_field_strings:
+                if string_to_avoid in _field_value_string:
+                    _field_value_string = _field_value_string.replace(string_to_avoid, '')
+            tooltip_string_list.append(_field_value_string)
         if tooltip_string_list:
             tool_tip_text = '\n'.join(tooltip_string_list)
             self.setToolTip(tool_tip_text)
