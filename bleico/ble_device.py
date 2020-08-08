@@ -164,6 +164,12 @@ class BASE_BLE_DEVICE:
 
     def disconnection_callback(self, client):
         self.connected = False
+
+    # RSSI
+    def get_RSSI(self):
+        self.loop.run_until_complete(self.ble_client.update_RSSI())
+        self.rssi = self.ble_client.rssi
+        return self.rssi
     # SERVICES
 
     def get_services(self, log=True):
@@ -206,7 +212,7 @@ class BASE_BLE_DEVICE:
                         except Exception as e:
                             print(e)
 
-                    if "notify" in char.properties:
+                    if "notify" in char.properties or 'indicate' in char.properties:
                         try:
                             self.notifiables[char.description] = char.uuid
                             self.notifiables_handles[char.handle] = char.description

@@ -20,7 +20,7 @@ import logging
 import sys
 from bleico.systrayicon import SystemTrayIcon
 import os
-from bleico.devtools import load_dev  # get own devtools
+from bleico.devtools import load_dev
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
 
@@ -69,7 +69,7 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
     # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
     handlers=[handler])
-log = logging.getLogger('bleico')  # setup one logger per device
+log = logging.getLogger('bleico')
 log.info('Running bleico {}'.format('0.0.1'))
 
 
@@ -93,7 +93,7 @@ def main():
                               logger=log, debug=True,
                               read_timeout=upy_conf['read_timeout'],
                               SRC_PATH=SRC_PATH, SRC_PATH_SOUND=SRC_PATH_SOUND)
-    # Menu refresher
+    # Menu Update
     trayIcon.start_update_menu()
 
     trayIcon.show()

@@ -25,13 +25,11 @@ import bleico
 from bleico.systrayicon import SystemTrayIcon
 import os
 import argparse
-from bleico.devtools import store_dev, load_dev  # get own devtools
+from bleico.devtools import store_dev, load_dev
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
 from argcomplete.completers import ChoicesCompleter
 
-
-# TODO: DEVICE STATE, LAST UPDATE
 helparg = '''Mode:
 - config
 - run
@@ -39,7 +37,7 @@ helparg = '''Mode:
 
 usag = """%(prog)s [Mode] [options]
 """
-# UPY MODE KEYWORDS AND COMMANDS
+# KEYWORDS AND COMMANDS
 keywords_mode = ['config', 'run']
 log_levs = ['debug', 'info', 'warning', 'error', 'critical']
 parser = argparse.ArgumentParser(prog='bleico',
@@ -111,7 +109,7 @@ $$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
         format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
         # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
         handlers=[handler])
-    log = logging.getLogger('bleico')  # setup one logger per device
+    log = logging.getLogger('bleico')
     log.info('Running bleico {}'.format(parser.version))
 
 
@@ -137,7 +135,7 @@ def main():
                               logger=log, debug=args.debug,
                               read_timeout=upy_conf['read_timeout'],
                               SRC_PATH=SRC_PATH, SRC_PATH_SOUND=SRC_PATH_SOUND)
-    # Menu refresher
+    # Menu Update
     trayIcon.start_update_menu()
 
     trayIcon.show()

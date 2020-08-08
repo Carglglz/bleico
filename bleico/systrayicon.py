@@ -30,14 +30,15 @@ from bleak.uuids import uuidstr_to_str
 from datetime import datetime
 import time
 import struct
-from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtGui import QIcon, QPixmap, QDesktopServices
 from PyQt5.QtWidgets import (QSystemTrayIcon, QMenu, QAction,
                              QSplashScreen)
 from PyQt5.QtCore import (QObject, QRunnable, QThreadPool, pyqtSignal,
-                          pyqtSlot, Qt)
+                          pyqtSlot, Qt, QUrl)
 from PyQt5.QtMultimedia import QSound
 import traceback
 import asyncio
+from array import array
 
 
 class DisconnectionError(Exception):
@@ -132,6 +133,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self._ntries = 0
         self._read_timeout = read_timeout
         self._timeout_count = read_timeout - 1
+        self._rssi_buffer = array('h', (0 for _ in range(10)))
         # SPLASH SCREEN
         # Splash Screen
         self.splash_pix = QPixmap(os.path.join(SRC_PATH, "bleico.png"), 'PNG')
@@ -162,6 +164,10 @@ class SystemTrayIcon(QSystemTrayIcon):
                 self.splash.close()
                 sys.exit()
         self.splash.clearMessage()
+        # Get RSSI
+        _rssi_init_val = self.esp32_device.get_RSSI()
+        for i in range(len(self._rssi_buffer)):
+            self._rssi_buffer[i] = _rssi_init_val
         # Create the menu
         if "{}.png".format(self.esp32_device.appearance_tag) not in os.listdir(SRC_PATH):
             self.app_icon = QIcon(os.path.join(SRC_PATH, "UNKNOWN.png"))
@@ -182,7 +188,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.separator = QAction()
         self.separator.setSeparator(True)
         self.menu.addAction(self.separator)
-        # SERVICES
+        # SERVICES & CHARS
         # AVOID READ CHARS
         self.avoid_chars = ['Appearance', 'Manufacturer Name String',
                             'Battery Power State', 'Model Number String',
@@ -317,6 +323,15 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.notify_sound_act.setEnabled(True)
         self.notify_menu.addAction(self.notify_sound_act)
         self.notify_sound_act.triggered.connect(self.toggle_notify_sound)
+        self.menu.addSeparator()
+        # SET TOOL TIP DIALOG
+        self.set_tool_tip_dialog = ChecklistDialog('Set Tool Tip Fields',
+                                                   self.checklist_fields,
+                                                   checked=False, log=self.log,
+                                                   check_list=self.checklist_choices)
+        self.set_tool_tip_action = QAction("Set Tool Tip")
+        self.set_tool_tip_action.triggered.connect(self.show_checklist_dialog)
+        self.menu.addAction(self.set_tool_tip_action)
         # TIME LAST UPDATE
         self.menu.addSeparator()
         self.last_update_action = QAction()
@@ -326,14 +341,16 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.device_status_action = QAction("Status: Connected")
         self.device_status_action.setEnabled(False)
         self.menu.addAction(self.device_status_action)
-        # SET TOOL TIP DIALOG
-        self.set_tool_tip_dialog = ChecklistDialog('Set Tool Tip Fields',
-                                                   self.checklist_fields,
-                                                   checked=False, log=self.log,
-                                                   check_list=self.checklist_choices)
-        self.set_tool_tip_action = QAction("Set Tool Tip")
-        self.set_tool_tip_action.triggered.connect(self.show_checklist_dialog)
-        self.menu.addAction(self.set_tool_tip_action)
+        # RSSI
+        self.device_rssi_action = QAction("RSSI: ? dBm")
+        self.device_rssi_action.setEnabled(False)
+        self.menu.addAction(self.device_rssi_action)
+        self.menu.addSeparator()
+        # ABOUT
+        self.about_action = QAction("About")
+        self.about_action.triggered.connect(self.about_url)
+        self.menu.addAction(self.about_action)
+        # EXIT
         self.separator_exit = QAction()
         self.separator_exit.setSeparator(True)
         self.menu.addAction(self.separator_exit)
@@ -476,55 +493,60 @@ class SystemTrayIcon(QSystemTrayIcon):
             else:
                 try:
                     for char_handle in data.keys():
-                        char = self.esp32_device.readables_handles[char_handle]
-                        # HANDLE SINGLE VALUES
-                        if len(self.esp32_device.chars_xml[char].fields) == 1:
-                            char_text = self.esp32_device.pformat_char_value(data[char_handle],
-                                                                             char=char,
-                                                                             rtn=True,
-                                                                             prnt=False,
-                                                                             one_line=True,
-                                                                             only_val=True)
+                        if isinstance(char_handle, int):
+                            char = self.esp32_device.readables_handles[char_handle]
+                            # HANDLE SINGLE VALUES
+                            if len(self.esp32_device.chars_xml[char].fields) == 1:
+                                char_text = self.esp32_device.pformat_char_value(data[char_handle],
+                                                                                 char=char,
+                                                                                 rtn=True,
+                                                                                 prnt=False,
+                                                                                 one_line=True,
+                                                                                 only_val=True)
 
-                            self.char_actions_dict[char_handle].setText(char_text)
-                            if self.debug:
-                                for serv in self.esp32_device.services_rsum.keys():
-                                    if char in self.esp32_device.services_rsum[serv]:
-                                        self.log.info("[{}] {}".format(serv, char_text))
-                            # SAVE FOR TOOLTIP
-                            for field in self.esp32_device.chars_xml[char].fields:
-                                self.tooltip_h_ch_field_values_dict[char_handle][char][field] = char_text
-                        elif len(self.esp32_device.chars_xml[char].fields) > 1:
-                            for field in self.esp32_device.chars_xml[char].fields:
-                                # NORMAL FIELD
-                                if field in data[char_handle]:
-                                    if "Reference" not in self.esp32_device.chars_xml[char].fields[field]:
-                                        field_val = self.esp32_device.pformat_field_value(data[char_handle][field],
-                                                                                         rtn=True,
-                                                                                         prnt=False)
-                                    else:
-                                        # REFERENCE FIELD
-                                        reference = self.esp32_device.chars_xml[char].fields[field]["Reference"]
-                                        if reference in data[char_handle][field][reference]:
-                                            field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference][reference],
+                                self.char_actions_dict[char_handle].setText(char_text)
+                                if self.debug:
+                                    for serv in self.esp32_device.services_rsum.keys():
+                                        if char in self.esp32_device.services_rsum[serv]:
+                                            self.log.info("[{}] {}".format(serv, char_text))
+                                # SAVE FOR TOOLTIP
+                                for field in self.esp32_device.chars_xml[char].fields:
+                                    self.tooltip_h_ch_field_values_dict[char_handle][char][field] = char_text
+                            elif len(self.esp32_device.chars_xml[char].fields) > 1:
+                                for field in self.esp32_device.chars_xml[char].fields:
+                                    # NORMAL FIELD
+                                    if field in data[char_handle]:
+                                        if "Reference" not in self.esp32_device.chars_xml[char].fields[field]:
+                                            field_val = self.esp32_device.pformat_field_value(data[char_handle][field],
                                                                                              rtn=True,
                                                                                              prnt=False)
                                         else:
-                                            if reference == 'Date Time':
-                                                field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference],
-                                                                                                     rtn=True,
-                                                                                                     prnt=False,
-                                                                                                     timestamp=True)
+                                            # REFERENCE FIELD
+                                            reference = self.esp32_device.chars_xml[char].fields[field]["Reference"]
+                                            if reference in data[char_handle][field][reference]:
+                                                field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference][reference],
+                                                                                                 rtn=True,
+                                                                                                 prnt=False)
+                                            elif field in data[char_handle][field][reference]:
+                                                field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference][field],
+                                                                                                 rtn=True,
+                                                                                                 prnt=False)
                                             else:
-                                                field_val = self.esp32_device.pformat_ref_char_value(data[char_handle][field], rtn=True)
-                                    field_text = "{}: {}".format(field, field_val)
-                                    self.char_fields_actions_dict[char_handle][field].setText(field_text)
-                                    # SAVE FOR TOOLTIP
-                                    self.tooltip_h_ch_field_values_dict[char_handle][char][field] = field_text
-                                    if self.debug:
-                                        for serv in self.esp32_device.services_rsum.keys():
-                                            if char in self.esp32_device.services_rsum[serv]:
-                                                self.log.info("[{}] {} {}".format(serv, char, field_text))
+                                                if reference == 'Date Time':
+                                                    field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference],
+                                                                                                         rtn=True,
+                                                                                                         prnt=False,
+                                                                                                         timestamp=True)
+                                                else:
+                                                    field_val = self.esp32_device.pformat_ref_char_value(data[char_handle][field], rtn=True)
+                                        field_text = "{}: {}".format(field, field_val)
+                                        self.char_fields_actions_dict[char_handle][field].setText(field_text)
+                                        # SAVE FOR TOOLTIP
+                                        self.tooltip_h_ch_field_values_dict[char_handle][char][field] = field_text
+                                        if self.debug:
+                                            for serv in self.esp32_device.services_rsum.keys():
+                                                if char in self.esp32_device.services_rsum[serv]:
+                                                    self.log.info("[{}] {} {}".format(serv, char, field_text))
 
 
                     # TODO: HANDLE BITFLAGS
@@ -535,6 +557,11 @@ class SystemTrayIcon(QSystemTrayIcon):
                     # LAST UPDATE
                     self.last_update_action.setText("Last Update: {}".format(datetime.strftime(datetime.now(), "%H:%M:%S")))
                     self.device_status_action.setText('Status: Connected')
+                    if 'DEVICE_RSSI' in data:
+                        self._rssi_buffer.pop(0)
+                        self._rssi_buffer.append(data['DEVICE_RSSI'])
+                        _av_rssi_val = int(sum(self._rssi_buffer)/len(self._rssi_buffer))
+                        self.device_rssi_action.setText('RSSI: {} dBm'.format(_av_rssi_val))
                 except Exception as e:
                     if self.debug:
                         self.log.error(traceback.format_exc())
@@ -557,6 +584,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                                         break
                                     else:
                                         data[char_handle] = (self.esp32_device.get_char_value(char, handle=char_handle))
+                            data['DEVICE_RSSI'] = self.esp32_device.get_RSSI()
                             progress_callback.emit(data)
                             self._timeout_count = 0
                         else:
@@ -817,6 +845,10 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.setToolTip(tool_tip_text)
         else:
             self.setToolTip('')
+
+    def about_url(self):
+        url = QUrl('https://github.com/Carglglz/bleico')
+        QDesktopServices.openUrl(url)
 
     def shutdown(self, loop):
         try:
