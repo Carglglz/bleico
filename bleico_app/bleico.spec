@@ -4,7 +4,7 @@ block_cipher = None
 
 
 a = Analysis(['bleico_app.py'],
-             pathex=['/Users/carlosgilgonzalez/Desktop/IBM_PROJECTS/MICROPYTHON/TOOLS/UTILS/bleico/bleico_app'],
+             pathex=['.'],
              binaries=[],
              datas=[('../bleico/icons/*.png', 'icons'),
                     ('../bleico/sounds/*.wav', 'sounds'),
