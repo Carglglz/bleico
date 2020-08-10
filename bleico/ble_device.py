@@ -120,7 +120,7 @@ class BASE_BLE_DEVICE:
         self.ble_client = BleakClient(self.UUID, loop=self.loop)
         while n < n_tries:
             try:
-                await self.ble_client.connect()
+                await self.ble_client.connect(timeout=5)
                 self.connected = await self.ble_client.is_connected()
                 if self.connected:
                     self.name = self.ble_client._device_info.name()
@@ -219,7 +219,7 @@ class BASE_BLE_DEVICE:
                         except Exception as e:
                             print(e)
 
-                    if "write" in char.properties:
+                    if "write" in char.properties or 'write-without-response' in char.properties:
                         try:
                             self.writeables[char.description] = char.uuid
                             self.writeables_handles[char.handle] = char.description

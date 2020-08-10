@@ -217,6 +217,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.char_actions_dict = {}
         self.notify_char_menu_dict = {}
         self.notify_char_actions_dict = {}
+        self.toggle_desktop_notify_char_actions_dict = {}
+        self.do_desktop_notify_char_dict = {}
         self.write_char_menu_dict = {}
         self.write_char_actions_dict = {}
         self.battery_power_state_actions_dict = {}
@@ -236,8 +238,11 @@ class SystemTrayIcon(QSystemTrayIcon):
                 serv.setEnabled(False)
                 self.menu.addAction(serv)
                 for char_handle in self.esp32_device.services_rsum_handles[key]:
-                    if char_handle in self.esp32_device.readables_handles.keys():
-                        char = self.esp32_device.readables_handles[char_handle]
+                    if char_handle in self.esp32_device.readables_handles.keys() or char_handle in self.esp32_device.notifiables_handles.keys():
+                        try:
+                            char = self.esp32_device.readables_handles[char_handle]
+                        except Exception as e:
+                            char = self.esp32_device.notifiables_handles[char_handle]
                         if char in self.avoid_chars:
                             if char == 'Battery Power State':
                                 self.char_actions_dict[char_handle] = self.menu.addMenu(char)
@@ -317,6 +322,9 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.notify_char_menu_dict[char_handle] = self.notify_menu.addMenu(char)
             self.notify_char_actions_dict[char_handle] = self.notify_char_menu_dict[char_handle].addAction('Notify')
             self.notify_char_actions_dict[char_handle].triggered.connect(self.check_which_triggered)
+            self.toggle_desktop_notify_char_actions_dict[char_handle] = self.notify_char_menu_dict[char_handle].addAction('Desktop Notification: On')
+            self.do_desktop_notify_char_dict[char_handle] = True
+            self.toggle_desktop_notify_char_actions_dict[char_handle].triggered.connect(self.toggle_desktop_notify)
             # here trigger action --> set flag notify True, start Thread, callback notify ...
         self.notify_menu.addSeparator()
         self.notify_sound_act = QAction("Notify: Sound off")
@@ -455,6 +463,20 @@ class SystemTrayIcon(QSystemTrayIcon):
                     else:
                         self.log.info('Showing {} Set Value Control'.format(char))
                         self.write_char_actions_dict[char_handle]["set_value_box"].show()
+
+    def toggle_desktop_notify(self, checked):
+        action = self.sender()
+        for char_handle in self.notify_char_actions_dict.keys():
+            char = self.esp32_device.notifiables_handles[char_handle]
+            if action == self.toggle_desktop_notify_char_actions_dict[char_handle]:
+                value = not self.do_desktop_notify_char_dict[char_handle]
+                self.do_desktop_notify_char_dict[char_handle] = value
+                if value:
+                    self.log.info("Char: {} Desktop Notification Enabled".format(char))
+                    self.toggle_desktop_notify_char_actions_dict[char_handle].setText('Desktop Notification: On')
+                else:
+                    self.log.info("Char: {} Desktop Notification Disabled".format(char))
+                    self.toggle_desktop_notify_char_actions_dict[char_handle].setText('Desktop Notification: Off')
 
     def refresh_menu(self, response):
 
@@ -726,8 +748,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                     for serv in self.esp32_device.services_rsum.keys():
                         if char in self.esp32_device.services_rsum[serv]:
                             nservice = serv
-                    self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {}".format(
-                        char, data_value_string))
+                    if self.do_desktop_notify_char_dict[char_handle]:
+                        self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {}".format(
+                            char, data_value_string))
 
                     if self.debug:
                         for serv in self.esp32_device.services_rsum.keys():
@@ -741,7 +764,8 @@ class SystemTrayIcon(QSystemTrayIcon):
                     for serv in self.esp32_device.services_rsum.keys():
                         if char in self.esp32_device.services_rsum[serv]:
                             nservice = serv
-                    self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {} {}".format(char, self.esp32_device.batt_power_state['Charging State'],
+                    if self.do_desktop_notify_char_dict[char_handle]:
+                        self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {} {}".format(char, self.esp32_device.batt_power_state['Charging State'],
                                                                                                           self.esp32_device.batt_power_state['Level']))
 
                     if self.debug:
@@ -762,7 +786,6 @@ class SystemTrayIcon(QSystemTrayIcon):
             try:
                 data_dict = {sender_handle: data}
                 callb.emit(data_dict)
-                # print("Char Notifiaction: {}".format(char))
             except Exception as e:
                 self.log.error(e)
 
