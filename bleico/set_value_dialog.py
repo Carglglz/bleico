@@ -120,11 +120,21 @@ class SetValueDialog(QWidget):
                         self.line_fields[field] = QLineEdit()
                         self.layout.addWidget(self.label_fields[field])
                         self.layout.addWidget(self.line_fields[field])
-                    elif 'Enumerations' in self.char_fields[field]:
+                    elif 'Enumerations' in self.char_fields[field] and 'BitField' not in self.char_fields[field]:
                         self.combo_fields[field] = QComboBox()
                         self.combo_fields[field].addItems(list(self.char_fields[field]['Enumerations'].values()))
                         self.layout.addWidget(self.label_fields[field])
                         self.layout.addWidget(self.combo_fields[field])
+                    elif 'BitField' in self.char_fields[field]:
+                        for flag in self.char_fields[field]['BitField']:
+                            self.label_flag_fields[flag] = QLabel(flag)
+                            self.combo_flag_fields[flag] = QComboBox()
+                            _flags = list(self.char_fields[field]['BitField'][flag]['Enumerations'].values())
+                            _flag_list = [fl for fl in _flags if isinstance(fl, str)]
+                            self.combo_flag_fields[flag].addItems(_flag_list)
+                            self.layout.addWidget(self.label_flag_fields[flag])
+                            self.layout.addWidget(self.combo_flag_fields[flag])
+
                     elif 'Reference' in self.char_fields[field]:
                         ref_char = self.char_fields[field]['Reference']
                         if ref_char in self.opt_ref_fields:
@@ -283,6 +293,25 @@ class SetValueDialog(QWidget):
                         # SET REQUIREMENTS
                         reqs = _autoformat_reqs(self.char, eval(self.global_flag))
                         self._flag_reqs = reqs['Flags']
+
+                elif field != 'Flags' and 'BitField' in self.char_fields[field]:
+                    for flag in self.char_fields[field]['BitField']:
+                        text = self.combo_flag_fields[flag].currentText()
+                        flag_map = self.char_fields[field]['BitField'][flag]['Enumerations'].items()
+                        map_write_values = {v: int(k) for k, v in flag_map if isinstance(v, str)}
+                        bitval = bin(map_write_values[text]).replace('0b', '')
+                        bitfield_size = int(self.char_fields[field]['BitField'][flag]['size'])
+                        # LEFT ZERO PADDING
+                        while bitfield_size > len(bitval):
+                            bitval = '0' + bitval
+                        self.global_flag = bitval + self.global_flag
+                    # RIGHT ZERO PADDING
+                    while len(self.global_flag) < (struct.calcsize(self.flag_format) * 8):
+                        self.global_flag = '0' + self.global_flag
+                    self.global_flag = '0b' + self.global_flag
+                    self.value_fields[field] = eval(self.global_flag)
+                    self.global_format += self.format_fields[field]
+                    self.log.info('Value: {} ({})'.format(field, self.global_flag))
 
                 elif field in self.line_char:
                     # DATE/ DATETIME

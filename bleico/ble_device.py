@@ -120,7 +120,7 @@ class BASE_BLE_DEVICE:
         self.ble_client = BleakClient(self.UUID, loop=self.loop)
         while n < n_tries:
             try:
-                await self.ble_client.connect(timeout=5)
+                await self.ble_client.connect(timeout=3)
                 self.connected = await self.ble_client.is_connected()
                 if self.connected:
                     self.name = self.ble_client._device_info.name()

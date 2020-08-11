@@ -135,7 +135,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         self._timeout_count = read_timeout - 1
         self._rssi_buffer = array('h', (0 for _ in range(10)))
         # SPLASH SCREEN
-        # Splash Screen
         self.splash_pix = QPixmap(os.path.join(SRC_PATH, "bleico.png"), 'PNG')
         self.scaled_splash = self.splash_pix.scaled(
             512, 512, Qt.KeepAspectRatio, transformMode=Qt.SmoothTransformation)
@@ -194,7 +193,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                             'Battery Power State', 'Model Number String',
                             'Firmware Revision String']
         self.avoid_field_strings = ['Measurement', 'Value', 'String',
-                                    '(uint8)', '(uint16)']
+                                    '(uint8)', '(uint16)', 'Compound']
 
         self.serv_menu = self.menu.addMenu("Services")
         if self.debug:
@@ -223,6 +222,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.write_char_actions_dict = {}
         self.battery_power_state_actions_dict = {}
         self.char_fields_actions_dict = {}
+        self.char_fields_bitfields_actions_dict = {}
         self.checklist_fields = []
         self.checklist_choices = []
         self.tooltip_h_ch_field_values_dict = {}
@@ -256,22 +256,51 @@ class SystemTrayIcon(QSystemTrayIcon):
                             # HERE DIVIDE CHARS INTO SINGLE/FEATURES/MULTIPLE
                             # SINGLE FIELD CHARACTERISTIC
                             if len(self.esp32_device.chars_xml[char].fields) == 1:
-                                self.char_actions_dict[char_handle] = QAction("{}: ? ua".format(char))
-                                self.menu.addAction(self.char_actions_dict[char_handle])
-                                # ADD TO CHECKLIST
+                                bfield = False
                                 for field in self.esp32_device.chars_xml[char].fields:
-                                    self.checklist_fields.append("{}:{}:{}".format(char, field, char_handle))
-                                    self.tooltip_h_ch_field_values_dict[char_handle][char][field] = ''
+                                    if 'BitField' in self.esp32_device.chars_xml[char].fields[field]:
+                                        bfield = True
+                                if not bfield:
+                                    self.char_actions_dict[char_handle] = QAction("{}: ? ua".format(char))
+                                    self.menu.addAction(self.char_actions_dict[char_handle])
+                                    # ADD TO CHECKLIST
+                                    for field in self.esp32_device.chars_xml[char].fields:
+                                        self.checklist_fields.append("{}:{}:{}".format(char, field, char_handle))
+                                        self.tooltip_h_ch_field_values_dict[char_handle][char][field] = ''
+                                else:
+                                    self.char_actions_dict[char_handle] = self.menu.addMenu(char)
+                                    self.char_fields_actions_dict[char_handle] = {}
+                                    for field in self.esp32_device.chars_xml[char].fields:
+                                        if 'BitField' in self.esp32_device.chars_xml[char].fields[field]:
+                                            for _bitfield in self.esp32_device.chars_xml[char].fields[field]['BitField']:
+                                                self.char_fields_actions_dict[char_handle][_bitfield] = self.char_actions_dict[char_handle].addAction(_bitfield)
+                                                # ADD TO CHECKLIST
+                                                self.checklist_fields.append("{}:{}:{}".format(char, _bitfield, char_handle))
+                                                self.tooltip_h_ch_field_values_dict[char_handle][char][_bitfield] = ''
 
                             # MULTIPLE FIELDS CHARACTERISTIC
                             elif len(self.esp32_device.chars_xml[char].fields) > 1:
                                 self.char_actions_dict[char_handle] = self.menu.addMenu(char)
                                 self.char_fields_actions_dict[char_handle] = {}
+                                self.char_fields_bitfields_actions_dict[char_handle] = {}
                                 for field in self.esp32_device.chars_xml[char].fields:
-                                    self.char_fields_actions_dict[char_handle][field] = self.char_actions_dict[char_handle].addAction(field)
-                                    # ADD TO CHECKLIST
-                                    self.checklist_fields.append("{}:{}:{}".format(char, field, char_handle))
-                                    self.tooltip_h_ch_field_values_dict[char_handle][char][field] = ''
+                                    bfield = False
+                                    if 'BitField' in self.esp32_device.chars_xml[char].fields[field]:
+                                            if field != 'Flags':
+                                                bfield = True
+                                    if not bfield:
+                                        self.char_fields_actions_dict[char_handle][field] = self.char_actions_dict[char_handle].addAction(field)
+                                        # ADD TO CHECKLIST
+                                        self.checklist_fields.append("{}:{}:{}".format(char, field, char_handle))
+                                        self.tooltip_h_ch_field_values_dict[char_handle][char][field] = ''
+                                    else:
+                                        self.char_fields_actions_dict[char_handle][field] = self.char_actions_dict[char_handle].addMenu(field)
+                                        self.char_fields_bitfields_actions_dict[char_handle][field] = {}
+                                        for _bitfield in self.esp32_device.chars_xml[char].fields[field]['BitField']:
+                                            self.char_fields_bitfields_actions_dict[char_handle][field][_bitfield] = self.char_fields_actions_dict[char_handle][field].addAction(_bitfield)
+                                            # ADD TO CHECKLIST
+                                            self.checklist_fields.append("{}:{}:{}".format(char, _bitfield, char_handle))
+                                            self.tooltip_h_ch_field_values_dict[char_handle][char][_bitfield] = ''
 
                     if char_handle in self.esp32_device.writeables_handles.keys():
                         char = self.esp32_device.writeables_handles[char_handle]
@@ -279,7 +308,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                         if len(xml_char.fields) == 1:
                             self.write_char_menu_dict[char_handle] = self.menu.addMenu("Set {}".format(char))
                             for field in xml_char.fields:
-                                if 'Enumerations' in xml_char.fields[field].keys():
+                                if 'Enumerations' in xml_char.fields[field].keys() and 'BitField' not in xml_char.fields[field].keys():
                                     self.write_char_actions_dict[char_handle] = {}
                                     for k, v in xml_char.fields[field]['Enumerations'].items():
                                         self.write_char_actions_dict[char_handle][v] = self.write_char_menu_dict[char_handle].addAction(v)
@@ -443,20 +472,24 @@ class SystemTrayIcon(QSystemTrayIcon):
                         val_to_write = []
                         for field in xml_char.fields:
                             if 'Unit' not in xml_char.fields[field].keys() and 'Enumerations' in xml_char.fields[field].keys():
-                                try:
-                                    map_write_values = {v: int(k) for k, v in xml_char.fields[field]['Enumerations'].items()}
-                                    val_to_write.append(map_write_values[write_action_key])
-                                    format += xml_char.fields[field]['Ctype']
-                                    self.log.info('{}: {}'.format(char, write_action_key))
-                                except Exception as e:
-                                    self.log.error(e)
-                                try:
-                                    packed_val = struct.pack(format, *val_to_write)
-                                    self.esp32_device.write_char(xml_char.name,
-                                                                 data=packed_val,
-                                                                 handle=char_handle)
-                                except Exception as e:
-                                    self.log.error(e)
+                                if 'BitField' not in xml_char.fields[field].keys():
+                                    try:
+                                        map_write_values = {v: int(k) for k, v in xml_char.fields[field]['Enumerations'].items()}
+                                        val_to_write.append(map_write_values[write_action_key])
+                                        format += xml_char.fields[field]['Ctype']
+                                        self.log.info('{}: {}'.format(char, write_action_key))
+                                    except Exception as e:
+                                        self.log.error(e)
+                                    try:
+                                        packed_val = struct.pack(format, *val_to_write)
+                                        self.esp32_device.write_char(xml_char.name,
+                                                                     data=packed_val,
+                                                                     handle=char_handle)
+                                    except Exception as e:
+                                        self.log.error(e)
+                                else:
+                                    self.log.info('Showing {} Set Value Control'.format(char))
+                                    self.write_char_actions_dict[char_handle]["set_value_box"].show()
                             else:
                                 self.log.info('Showing {} Set Value Control'.format(char))
                                 self.write_char_actions_dict[char_handle]["set_value_box"].show()
@@ -519,59 +552,88 @@ class SystemTrayIcon(QSystemTrayIcon):
                             char = self.esp32_device.readables_handles[char_handle]
                             # HANDLE SINGLE VALUES
                             if len(self.esp32_device.chars_xml[char].fields) == 1:
-                                char_text = self.esp32_device.pformat_char_value(data[char_handle],
-                                                                                 char=char,
-                                                                                 rtn=True,
-                                                                                 prnt=False,
-                                                                                 one_line=True,
-                                                                                 only_val=True)
-
-                                self.char_actions_dict[char_handle].setText(char_text)
-                                if self.debug:
-                                    for serv in self.esp32_device.services_rsum.keys():
-                                        if char in self.esp32_device.services_rsum[serv]:
-                                            self.log.info("[{}] {}".format(serv, char_text))
-                                # SAVE FOR TOOLTIP
+                                # CHECK IF BITFIELD
+                                _bfield = False
                                 for field in self.esp32_device.chars_xml[char].fields:
-                                    self.tooltip_h_ch_field_values_dict[char_handle][char][field] = char_text
+                                    if 'BitField' in self.esp32_device.chars_xml[char].fields[field]:
+                                        _bfield = True
+                                if not _bfield:
+                                    char_text = self.esp32_device.pformat_char_value(data[char_handle],
+                                                                                     char=char,
+                                                                                     rtn=True,
+                                                                                     prnt=False,
+                                                                                     one_line=True,
+                                                                                     only_val=True)
+
+                                    self.char_actions_dict[char_handle].setText(char_text)
+                                    if self.debug:
+                                        for serv in self.esp32_device.services_rsum.keys():
+                                            if char in self.esp32_device.services_rsum[serv]:
+                                                self.log.info("[{}] {}".format(serv, char_text))
+                                    # SAVE FOR TOOLTIP
+                                    for field in self.esp32_device.chars_xml[char].fields:
+                                        self.tooltip_h_ch_field_values_dict[char_handle][char][field] = char_text
+                                else:
+                                    # HANDLE BITFLAGS
+                                    bitflagdict = data[char_handle][char]['Value']
+                                    for _bitfield in bitflagdict:
+                                        bitfield_text = "{}: {}".format(_bitfield, bitflagdict[_bitfield])
+                                        self.char_fields_actions_dict[char_handle][_bitfield].setText(bitfield_text)
+                                        # SAVE FOR TOOLTIP
+                                        self.tooltip_h_ch_field_values_dict[char_handle][char][_bitfield] = bitfield_text
+                                        if self.debug:
+                                            for serv in self.esp32_device.services_rsum.keys():
+                                                if char in self.esp32_device.services_rsum[serv]:
+                                                    self.log.info("[{}] {} {}".format(serv, char, bitfield_text))
+
                             elif len(self.esp32_device.chars_xml[char].fields) > 1:
                                 for field in self.esp32_device.chars_xml[char].fields:
                                     # NORMAL FIELD
                                     if field in data[char_handle]:
-                                        if "Reference" not in self.esp32_device.chars_xml[char].fields[field]:
-                                            field_val = self.esp32_device.pformat_field_value(data[char_handle][field],
-                                                                                             rtn=True,
-                                                                                             prnt=False)
-                                        else:
-                                            # REFERENCE FIELD
-                                            reference = self.esp32_device.chars_xml[char].fields[field]["Reference"]
-                                            if reference in data[char_handle][field][reference]:
-                                                field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference][reference],
-                                                                                                 rtn=True,
-                                                                                                 prnt=False)
-                                            elif field in data[char_handle][field][reference]:
-                                                field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference][field],
+                                        if 'BitField' not in self.esp32_device.chars_xml[char].fields[field]:
+                                            if "Reference" not in self.esp32_device.chars_xml[char].fields[field]:
+                                                field_val = self.esp32_device.pformat_field_value(data[char_handle][field],
                                                                                                  rtn=True,
                                                                                                  prnt=False)
                                             else:
-                                                if reference == 'Date Time':
-                                                    field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference],
-                                                                                                         rtn=True,
-                                                                                                         prnt=False,
-                                                                                                         timestamp=True)
+                                                # REFERENCE FIELD
+                                                reference = self.esp32_device.chars_xml[char].fields[field]["Reference"]
+                                                if reference in data[char_handle][field][reference]:
+                                                    field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference][reference],
+                                                                                                     rtn=True,
+                                                                                                     prnt=False)
+                                                elif field in data[char_handle][field][reference]:
+                                                    field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference][field],
+                                                                                                     rtn=True,
+                                                                                                     prnt=False)
                                                 else:
-                                                    field_val = self.esp32_device.pformat_ref_char_value(data[char_handle][field], rtn=True)
-                                        field_text = "{}: {}".format(field, field_val)
-                                        self.char_fields_actions_dict[char_handle][field].setText(field_text)
-                                        # SAVE FOR TOOLTIP
-                                        self.tooltip_h_ch_field_values_dict[char_handle][char][field] = field_text
-                                        if self.debug:
-                                            for serv in self.esp32_device.services_rsum.keys():
-                                                if char in self.esp32_device.services_rsum[serv]:
-                                                    self.log.info("[{}] {} {}".format(serv, char, field_text))
-
-
-                    # TODO: HANDLE BITFLAGS
+                                                    if reference == 'Date Time':
+                                                        field_val = self.esp32_device.pformat_field_value(data[char_handle][field][reference],
+                                                                                                             rtn=True,
+                                                                                                             prnt=False,
+                                                                                                             timestamp=True)
+                                                    else:
+                                                        field_val = self.esp32_device.pformat_ref_char_value(data[char_handle][field], rtn=True)
+                                            field_text = "{}: {}".format(field, field_val)
+                                            self.char_fields_actions_dict[char_handle][field].setText(field_text)
+                                            # SAVE FOR TOOLTIP
+                                            self.tooltip_h_ch_field_values_dict[char_handle][char][field] = field_text
+                                            if self.debug:
+                                                for serv in self.esp32_device.services_rsum.keys():
+                                                    if char in self.esp32_device.services_rsum[serv]:
+                                                        self.log.info("[{}] {} {}".format(serv, char, field_text))
+                                        else:
+                                            # HANDLE BITFLAGS
+                                            bitflagdict = data[char_handle][field]['Value']
+                                            for _bitfield in bitflagdict:
+                                                bitfield_text = "{}: {}".format(_bitfield, bitflagdict[_bitfield])
+                                                self.char_fields_bitfields_actions_dict[char_handle][field][_bitfield].setText(bitfield_text)
+                                                # SAVE FOR TOOLTIP
+                                                self.tooltip_h_ch_field_values_dict[char_handle][char][_bitfield] = bitfield_text
+                                                if self.debug:
+                                                    for serv in self.esp32_device.services_rsum.keys():
+                                                        if char in self.esp32_device.services_rsum[serv]:
+                                                            self.log.info("[{}] {} ({}) {}".format(serv, char, field, bitfield_text))
                     # SET TOOLTIP
                     if self.checklist_choices:
                         self.log.info("Tool Tip Fields: {}".format(self.checklist_choices))
@@ -699,49 +761,76 @@ class SystemTrayIcon(QSystemTrayIcon):
                 if char != 'Battery Power State':
                     data_value = get_char_value(data[char_handle], self.esp32_device.chars_xml[char])
                     if len(self.esp32_device.chars_xml[char].fields) == 1:
-                        data_value_string = pformat_char_value(data_value,
-                                                               rtn=True,
-                                                               prnt=False,
-                                                               one_line=True,
-                                                               only_val=True)
-                        self.char_actions_dict[char_handle].setText(
-                            "{}: {}".format(char, data_value_string))
-                        # SAVE FOR TOOLTIP
+                        # CHECK IF BITFIELD
+                        _bfield = False
                         for field in self.esp32_device.chars_xml[char].fields:
-                            self.tooltip_h_ch_field_values_dict[char_handle][char][field] = "{}: {}".format(field, data_value_string)
+                            if 'BitField' in self.esp32_device.chars_xml[char].fields[field]:
+                                _bfield = True
+                        if not _bfield:
+                            data_value_string = pformat_char_value(data_value,
+                                                                   rtn=True,
+                                                                   prnt=False,
+                                                                   one_line=True,
+                                                                   only_val=True)
+                            self.char_actions_dict[char_handle].setText(
+                                "{}: {}".format(char, data_value_string))
+                            # SAVE FOR TOOLTIP
+                            for field in self.esp32_device.chars_xml[char].fields:
+                                self.tooltip_h_ch_field_values_dict[char_handle][char][field] = "{}: {}".format(field, data_value_string)
+                        else:
+                            # HANDLE BITFLAGS
+                            for field in self.esp32_device.chars_xml[char].fields:
+                                bitflagdict = data_value[field]['Value']
+                            data_value_string = '\n'.join(list(bitflagdict.values()))
+                            for _bitfield in bitflagdict:
+                                bitfield_text = "{}: {}".format(_bitfield, bitflagdict[_bitfield])
+                                self.char_fields_actions_dict[char_handle][_bitfield].setText(bitfield_text)
+                                # SAVE FOR TOOLTIP
+                                self.tooltip_h_ch_field_values_dict[char_handle][char][_bitfield] = bitfield_text
                     else:
                         field_strings = []
                         for field in self.esp32_device.chars_xml[char].fields:
                             # NORMAL FIELD
                             if field in data_value:
-                                if "Reference" not in self.esp32_device.chars_xml[char].fields[field]:
-                                    field_val = self.esp32_device.pformat_field_value(data_value[field],
-                                                                                     rtn=True,
-                                                                                     prnt=False)
-                                else:
-                                    # REFERENCE FIELD
-                                    reference = self.esp32_device.chars_xml[char].fields[field]["Reference"]
-                                    if field in data_value[field][reference]:
-                                        field_val = self.esp32_device.pformat_field_value(data_value[field][reference][field],
+                                if 'BitField' not in self.esp32_device.chars_xml[char].fields[field]:
+                                    if "Reference" not in self.esp32_device.chars_xml[char].fields[field]:
+                                        field_val = self.esp32_device.pformat_field_value(data_value[field],
                                                                                          rtn=True,
                                                                                          prnt=False)
                                     else:
-                                        if reference == 'Date Time':
-                                            field_val = self.esp32_device.pformat_field_value(data_value[field][reference],
-                                                                                                 rtn=True,
-                                                                                                 prnt=False,
-                                                                                                 timestamp=True)
+                                        # REFERENCE FIELD
+                                        reference = self.esp32_device.chars_xml[char].fields[field]["Reference"]
+                                        if field in data_value[field][reference]:
+                                            field_val = self.esp32_device.pformat_field_value(data_value[field][reference][field],
+                                                                                             rtn=True,
+                                                                                             prnt=False)
                                         else:
-                                            field_val = self.esp32_device.pformat_ref_char_value(data_value[field], rtn=True)
-                                field_text = "{}: {}".format(field, field_val)
-                                self.char_fields_actions_dict[char_handle][field].setText(field_text)
-                                # SAVE FOR TOOLTIP
-                                self.tooltip_h_ch_field_values_dict[char_handle][char][field] = field_text
-                                # if self.debug:
-                                #     for serv in self.esp32_device.services_rsum.keys():
-                                #         if char in self.esp32_device.services_rsum[serv]:
-                                #             self.log.info("[{}] {} {}".format(serv, char, field_text))
-                                field_strings.append(field_val)
+                                            if reference == 'Date Time':
+                                                field_val = self.esp32_device.pformat_field_value(data_value[field][reference],
+                                                                                                     rtn=True,
+                                                                                                     prnt=False,
+                                                                                                     timestamp=True)
+                                            else:
+                                                field_val = self.esp32_device.pformat_ref_char_value(data_value[field], rtn=True)
+
+                                    field_text = "{}: {}".format(field, field_val)
+                                    self.char_fields_actions_dict[char_handle][field].setText(field_text)
+                                    # SAVE FOR TOOLTIP
+                                    self.tooltip_h_ch_field_values_dict[char_handle][char][field] = field_text
+                                    # if self.debug:
+                                    #     for serv in self.esp32_device.services_rsum.keys():
+                                    #         if char in self.esp32_device.services_rsum[serv]:
+                                    #             self.log.info("[{}] {} {}".format(serv, char, field_text))
+                                    field_strings.append(field_val)
+                                else:
+                                    # HANDLE BITFLAGS
+                                    bitflagdict = bitflagdict = data_value[field]['Value']
+                                    for _bitfield in bitflagdict:
+                                        field_strings.append(bitflagdict[_bitfield])
+                                        bitfield_text = "{}: {}".format(_bitfield, bitflagdict[_bitfield])
+                                        self.char_fields_bitfields_actions_dict[char_handle][field][_bitfield].setText(bitfield_text)
+                                        # SAVE FOR TOOLTIP
+                                        self.tooltip_h_ch_field_values_dict[char_handle][char][_bitfield] = bitfield_text
 
                         data_value_string = ', '.join(field_strings)
 
