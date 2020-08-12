@@ -20,12 +20,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import ast
-import struct
+from bleak.formatter import SuperStruct
 from bleak.utils import get_xml_char, _autoformat_reqs, _get_req
 from PyQt5.QtWidgets import (QWidget, QPushButton,
                              QComboBox, QVBoxLayout, QLabel, QLineEdit,
-                             QDateTimeEdit)
+                             QDateTimeEdit, QScrollArea)
 from PyQt5.QtCore import Qt, QDate
+
+struct = SuperStruct()
 
 
 class SetValueDialog(QWidget):
@@ -54,6 +56,10 @@ class SetValueDialog(QWidget):
         self._flag_reqs = {}
         self.log = log
         self.dev = dev
+        # SCROLL AREA
+        self.scroll_layout = QVBoxLayout()
+        self.scrollArea = QScrollArea()
+        self.top_widget = QWidget()
 
         # GET REFERENCES
         for field in self.char_fields.copy():
@@ -121,10 +127,17 @@ class SetValueDialog(QWidget):
                         self.layout.addWidget(self.label_fields[field])
                         self.layout.addWidget(self.line_fields[field])
                     elif 'Enumerations' in self.char_fields[field] and 'BitField' not in self.char_fields[field]:
-                        self.combo_fields[field] = QComboBox()
-                        self.combo_fields[field].addItems(list(self.char_fields[field]['Enumerations'].values()))
-                        self.layout.addWidget(self.label_fields[field])
-                        self.layout.addWidget(self.combo_fields[field])
+                        if len(list(self.char_fields[field]['Enumerations'].values())) == 1:
+                            self.label_fields[field] = QLabel("{}".format(field))
+                            self.line_fields[field] = QLineEdit()
+                            self.layout.addWidget(self.label_fields[field])
+                            self.layout.addWidget(self.line_fields[field])
+
+                        else:
+                            self.combo_fields[field] = QComboBox()
+                            self.combo_fields[field].addItems(list(self.char_fields[field]['Enumerations'].values()))
+                            self.layout.addWidget(self.label_fields[field])
+                            self.layout.addWidget(self.combo_fields[field])
                     elif 'BitField' in self.char_fields[field]:
                         for flag in self.char_fields[field]['BitField']:
                             self.label_flag_fields[flag] = QLabel(flag)
@@ -180,8 +193,12 @@ class SetValueDialog(QWidget):
         self.button_config.move(20, 80)
         self.button_config.clicked.connect(self.on_push)
         self.layout.addWidget(self.button_config)
-
-        self.setLayout(self.layout)
+        self.top_widget.setLayout(self.layout)
+        self.scrollArea.setWidget(self.top_widget)
+        self.scrollArea.setWidgetResizable(True)
+        # self.scrollArea.setFixedHeight(400)
+        self.scroll_layout.addWidget(self.scrollArea)
+        self.setLayout(self.scroll_layout)
         self.setWindowTitle("Set {} Value".format(self.char.name))
 
     def on_push(self):
@@ -224,7 +241,10 @@ class SetValueDialog(QWidget):
                             # FIXME: assert correct format int/float/string ? max/min ?
                             self.value_fields[field] = int(formatted_value)
                             self.global_format += self.format_fields[field]
-                            self.log.info('Value: {} {}'.format(text, self.char_fields[field]['Symbol']))
+                            if 'Symbol' in self.char_fields[field]:
+                                self.log.info('Value: {} {}'.format(text, self.char_fields[field]['Symbol']))
+                            else:
+                                self.log.info('Value: {}'.format(text))
                     else:
                         # REQUIRED FIELDS
                         if self._flag_reqs:
@@ -260,19 +280,37 @@ class SetValueDialog(QWidget):
                                     # FIXME: assert correct format int/float/string ? max/min ?
                                     self.value_fields[field] = int(formatted_value)
                                     self.global_format += self.format_fields[field]
-                                    self.log.info('Value: {} {}'.format(text, self.char_fields[field]['Symbol']))
+                                    if 'Symbol' in self.char_fields[field]:
+                                        self.log.info('Value: {} {}'.format(text, self.char_fields[field]['Symbol']))
+                                    else:
+                                        self.log.info('Value: {}'.format(text))
 
                 elif field in self.combo_fields:
                     # MANDATORY / REQUIRED ?
-                    text = self.combo_fields[field].currentText()
-                    map_write_values = {v: int(k) for k, v in self.char_fields[field]['Enumerations'].items()}
-                    # encoded_value = struct.pack(self.format_fields[field], int(map_write_values[text]))
-                    self.value_fields[field] = int(map_write_values[text])
-                    self.global_format += self.format_fields[field]
-                    self.log.info('Value: {} {}'.format(int(map_write_values[text]),
-                                                                   text))
+                    if self._flag_reqs:
+                        field_req = _get_req(self.char_fields[field])
+                        _WRITE_FIELD = all([req in self._flag_reqs.values() for req in field_req])
+                        if _WRITE_FIELD:
+                            text = self.combo_fields[field].currentText()
+                            map_write_values = {v: int(k) for k, v in self.char_fields[field]['Enumerations'].items()}
+                            # encoded_value = struct.pack(self.format_fields[field], int(map_write_values[text]))
+                            self.value_fields[field] = int(map_write_values[text])
+                            self.global_format += self.format_fields[field]
+                            self.log.info('Value: {} {}'.format(int(map_write_values[text]),
+                                                                           text))
+
+                    else:
+                        text = self.combo_fields[field].currentText()
+                        map_write_values = {v: int(k) for k, v in self.char_fields[field]['Enumerations'].items()}
+                        # encoded_value = struct.pack(self.format_fields[field], int(map_write_values[text]))
+                        self.value_fields[field] = int(map_write_values[text])
+                        self.global_format += self.format_fields[field]
+                        self.log.info('Value: {} {}'.format(int(map_write_values[text]),
+                                                                       text))
                 elif field == 'Flags':
+                    self.global_flag = ''
                     if 'BitField' in self.char_fields[field]:
+                        self.flag_format = self.char_fields[field]['Ctype']
                         for flag in self.char_fields[field]['BitField']:
                             text = self.combo_flag_fields[flag].currentText()
                             flag_map = self.char_fields[field]['BitField'][flag]['Enumerations'].items()
@@ -295,23 +333,48 @@ class SetValueDialog(QWidget):
                         self._flag_reqs = reqs['Flags']
 
                 elif field != 'Flags' and 'BitField' in self.char_fields[field]:
-                    for flag in self.char_fields[field]['BitField']:
-                        text = self.combo_flag_fields[flag].currentText()
-                        flag_map = self.char_fields[field]['BitField'][flag]['Enumerations'].items()
-                        map_write_values = {v: int(k) for k, v in flag_map if isinstance(v, str)}
-                        bitval = bin(map_write_values[text]).replace('0b', '')
-                        bitfield_size = int(self.char_fields[field]['BitField'][flag]['size'])
-                        # LEFT ZERO PADDING
-                        while bitfield_size > len(bitval):
-                            bitval = '0' + bitval
-                        self.global_flag = bitval + self.global_flag
-                    # RIGHT ZERO PADDING
-                    while len(self.global_flag) < (struct.calcsize(self.flag_format) * 8):
-                        self.global_flag = '0' + self.global_flag
-                    self.global_flag = '0b' + self.global_flag
-                    self.value_fields[field] = eval(self.global_flag)
-                    self.global_format += self.format_fields[field]
-                    self.log.info('Value: {} ({})'.format(field, self.global_flag))
+                    self.global_flag = ''
+                    if self._flag_reqs:
+                        field_req = _get_req(self.char_fields[field])
+                        _WRITE_FIELD = all([req in self._flag_reqs.values() for req in field_req])
+                        if _WRITE_FIELD:
+                            self.flag_format = self.char_fields[field]['Ctype']
+                            for flag in self.char_fields[field]['BitField']:
+                                text = self.combo_flag_fields[flag].currentText()
+                                flag_map = self.char_fields[field]['BitField'][flag]['Enumerations'].items()
+                                map_write_values = {v: int(k) for k, v in flag_map if isinstance(v, str)}
+                                bitval = bin(map_write_values[text]).replace('0b', '')
+                                bitfield_size = int(self.char_fields[field]['BitField'][flag]['size'])
+                                # LEFT ZERO PADDING
+                                while bitfield_size > len(bitval):
+                                    bitval = '0' + bitval
+                                self.global_flag = bitval + self.global_flag
+                            # RIGHT ZERO PADDING
+                            while len(self.global_flag) < (struct.calcsize(self.flag_format) * 8):
+                                self.global_flag = '0' + self.global_flag
+                            self.global_flag = '0b' + self.global_flag
+                            self.value_fields[field] = eval(self.global_flag)
+                            self.global_format += self.format_fields[field]
+                            self.log.info('Value: {} ({})'.format(field, self.global_flag))
+                    else:
+                        self.flag_format = self.char_fields[field]['Ctype']
+                        for flag in self.char_fields[field]['BitField']:
+                            text = self.combo_flag_fields[flag].currentText()
+                            flag_map = self.char_fields[field]['BitField'][flag]['Enumerations'].items()
+                            map_write_values = {v: int(k) for k, v in flag_map if isinstance(v, str)}
+                            bitval = bin(map_write_values[text]).replace('0b', '')
+                            bitfield_size = int(self.char_fields[field]['BitField'][flag]['size'])
+                            # LEFT ZERO PADDING
+                            while bitfield_size > len(bitval):
+                                bitval = '0' + bitval
+                            self.global_flag = bitval + self.global_flag
+                        # RIGHT ZERO PADDING
+                        while len(self.global_flag) < (struct.calcsize(self.flag_format) * 8):
+                            self.global_flag = '0' + self.global_flag
+                        self.global_flag = '0b' + self.global_flag
+                        self.value_fields[field] = eval(self.global_flag)
+                        self.global_format += self.format_fields[field]
+                        self.log.info('Value: {} ({})'.format(field, self.global_flag))
 
                 elif field in self.line_char:
                     # DATE/ DATETIME
