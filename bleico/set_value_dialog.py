@@ -152,14 +152,38 @@ class SetValueDialog(QWidget):
                         ref_char = self.char_fields[field]['Reference']
                         if ref_char in self.opt_ref_fields:
                             if ref_char not in self._date_chars and ref_char not in self._datetime_chars:
-                                _ref_fields = ','.join([fld for fld in self.opt_ref_fields[ref_char]])
-                                self.label_fields[field].setText('{}: {} [{}]'.format(field, ref_char, _ref_fields))
-                                self.line_fields[field] = QLineEdit()
-                                self.layout.addWidget(self.label_fields[field])
-                                self.layout.addWidget(self.line_fields[field])
-                                for sf in self.opt_ref_fields[ref_char]:
-                                    if 'Ctype' in self.opt_ref_fields[ref_char][sf]:
-                                        self.format_fields[sf] = self.opt_ref_fields[ref_char][sf]['Ctype']
+                                if len(self.opt_ref_fields[ref_char]) == 1:
+                                    if 'Unit' in self.opt_ref_fields[ref_char][field]:
+                                        self.label_fields[field].setText('{} {}'.format(ref_char, self.opt_ref_fields[ref_char][field]['Symbol']))
+                                        self.line_fields[field] = QLineEdit()
+                                        self.layout.addWidget(self.label_fields[field])
+                                        self.layout.addWidget(self.line_fields[field])
+
+                                    elif 'Enumerations' in self.opt_ref_fields[ref_char][field] and 'BitField' not in self.opt_ref_fields[ref_char][field]:
+                                        if len(list(self.opt_ref_fields[ref_char][field]['Enumerations'].values())) == 1:
+                                            self.label_fields[field] = QLabel("{}".format(field))
+                                            self.line_fields[field] = QLineEdit()
+                                            self.layout.addWidget(self.label_fields[field])
+                                            self.layout.addWidget(self.line_fields[field])
+
+                                        else:
+                                            self.combo_fields[field] = QComboBox()
+                                            self.combo_fields[field].addItems(list(self.opt_ref_fields[ref_char][field]['Enumerations'].values()))
+                                            self.layout.addWidget(self.label_fields[field])
+                                            self.layout.addWidget(self.combo_fields[field])
+
+                                    if 'Ctype' in self.opt_ref_fields[ref_char][field]:
+                                        self.format_fields[field] = self.opt_ref_fields[ref_char][field]['Ctype']
+
+                                else:
+                                    _ref_fields = ','.join([fld for fld in self.opt_ref_fields[ref_char]])
+                                    self.label_fields[field].setText('{}: {} [{}]'.format(field, ref_char, _ref_fields))
+                                    self.line_fields[field] = QLineEdit()
+                                    self.layout.addWidget(self.label_fields[field])
+                                    self.layout.addWidget(self.line_fields[field])
+                                    for sf in self.opt_ref_fields[ref_char]:
+                                        if 'Ctype' in self.opt_ref_fields[ref_char][sf]:
+                                            self.format_fields[sf] = self.opt_ref_fields[ref_char][sf]['Ctype']
                             else:
                                 self.label_char[field] = QLabel("{}".format(field))
                                 for sf in self.opt_ref_fields[ref_char]:
@@ -239,7 +263,10 @@ class SetValueDialog(QWidget):
 
                             # encoded_value = struct.pack(self.format_fields[field], int(formatted_value))
                             # FIXME: assert correct format int/float/string ? max/min ?
-                            self.value_fields[field] = int(formatted_value)
+                            if self.format_fields[field] == 'F' or self.format_fields[field] == 'S':
+                                self.value_fields[field] = formatted_value
+                            else:
+                                self.value_fields[field] = int(formatted_value)
                             self.global_format += self.format_fields[field]
                             if 'Symbol' in self.char_fields[field]:
                                 self.log.info('Value: {} {}'.format(text, self.char_fields[field]['Symbol']))
@@ -278,7 +305,10 @@ class SetValueDialog(QWidget):
 
                                     # encoded_value = struct.pack(self.format_fields[field], int(formatted_value))
                                     # FIXME: assert correct format int/float/string ? max/min ?
-                                    self.value_fields[field] = int(formatted_value)
+                                    if self.format_fields[field] == 'F' or self.format_fields[field] == 'S':
+                                        self.value_fields[field] = formatted_value
+                                    else:
+                                        self.value_fields[field] = int(formatted_value)
                                     self.global_format += self.format_fields[field]
                                     if 'Symbol' in self.char_fields[field]:
                                         self.log.info('Value: {} {}'.format(text, self.char_fields[field]['Symbol']))
@@ -292,7 +322,12 @@ class SetValueDialog(QWidget):
                         _WRITE_FIELD = all([req in self._flag_reqs.values() for req in field_req])
                         if _WRITE_FIELD:
                             text = self.combo_fields[field].currentText()
-                            map_write_values = {v: int(k) for k, v in self.char_fields[field]['Enumerations'].items()}
+                            if 'Reference' in self.char_fields[field]:
+                                ref_char = self.char_fields[field]['Reference']
+                                if ref_char in self.opt_ref_fields:
+                                    map_write_values = {v: int(k) for k, v in self.opt_ref_fields[ref_char][field]['Enumerations'].items()}
+                            else:
+                                map_write_values = {v: int(k) for k, v in self.char_fields[field]['Enumerations'].items()}
                             # encoded_value = struct.pack(self.format_fields[field], int(map_write_values[text]))
                             self.value_fields[field] = int(map_write_values[text])
                             self.global_format += self.format_fields[field]
