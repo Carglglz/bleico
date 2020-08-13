@@ -57,7 +57,7 @@ NUS = {"6e400001-b5a3-f393-e0a9-e50e24dcca9e": "Nordic UART Service",
 
 
 class BASE_BLE_DEVICE:
-    def __init__(self, scan_dev, init=False, name=None, lenbuff=100, loop=None, rssi=None):
+    def __init__(self, scan_dev, init=False, name=None, lenbuff=100, rssi=None):
         # BLE
         self.ble_client = None
         if hasattr(scan_dev, 'address'):
@@ -81,11 +81,7 @@ class BASE_BLE_DEVICE:
         self.readables_handles = {}
         self.writeables_handles = {}
         self.notifiables_handles = {}
-        if loop is None:
-            self.loop = asyncio.get_event_loop()
-        else:
-            self.loop = loop
-            print('NEW LOOP')
+        self.loop = asyncio.get_event_loop()
         # self.raw_buff_queue = asyncio.Queue()
         self.kb_cmd = None
         self.is_notifying = False
@@ -113,11 +109,11 @@ class BASE_BLE_DEVICE:
 
     def set_event_loop(self, loop):
         self.loop = loop
-        self.ble_client.loop = loop
+        # self.ble_client.loop = loop
 
     async def connect_client(self, n_tries=3, log=True):
         n = 0
-        self.ble_client = BleakClient(self.UUID, loop=self.loop)
+        self.ble_client = BleakClient(self.UUID)
         while n < n_tries:
             try:
                 await self.ble_client.connect(timeout=3)
@@ -675,10 +671,10 @@ class BASE_BLE_DEVICE:
 
 
 class BLE_DEVICE(BASE_BLE_DEVICE):
-    def __init__(self, scan_dev, init=False, name=None, lenbuff=100, loop=None,
+    def __init__(self, scan_dev, init=False, name=None, lenbuff=100,
                  rssi=None):
         super().__init__(scan_dev, init=init, name=name, lenbuff=lenbuff,
-                         loop=loop, rssi=rssi)
+                         rssi=rssi)
         self.appearance = 0
         self.appearance_tag = 'UNKNOWN'
         self.manufacturer = 'UNKNOWN'
