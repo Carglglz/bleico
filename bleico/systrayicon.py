@@ -26,7 +26,9 @@ import os
 from bleico.ble_device import BLE_DEVICE  # get own ble_device
 from bleico.set_value_dialog import SetValueDialog
 from bleico.set_tooltip_dialog import ChecklistDialog
+# from bleico.console_log import QPlainTextEditLogger
 from bleak.uuids import uuidstr_to_str
+# import logging
 from datetime import datetime
 import time
 import struct
@@ -130,6 +132,10 @@ class SystemTrayIcon(QSystemTrayIcon):
         QSystemTrayIcon.__init__(self, icon, parent)
         self.debug = debug
         self.log = logger
+        # CONSOLE LOG # TODO:  MAKE THREAD SAFE (EMIT SIGNAL)
+        # self.console_logger = QPlainTextEditLogger()
+        # self.console_logger.setFormatter(logging.Formatter("%(asctime)s [%(name)s] [%(levelname)s] %(message)s"))
+        # self.log.addHandler(self.console_logger)
         self._ntries = 0
         self._read_timeout = read_timeout
         self._timeout_count = read_timeout - 1
@@ -383,6 +389,11 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.device_rssi_action.setEnabled(False)
         self.menu.addAction(self.device_rssi_action)
         self.menu.addSeparator()
+        # CONSOLE
+        # self.console_log_action = QAction('Console')
+        # self.console_log_action.triggered.connect(self.show_console)
+        # self.menu.addAction(self.console_log_action)
+        # self.menu.addSeparator()
         # ABOUT
         self.about_action = QAction("About")
         self.about_action.triggered.connect(self.about_url)
@@ -681,22 +692,21 @@ class SystemTrayIcon(QSystemTrayIcon):
                         if self.esp32_device.is_connected():
                             self.log.info('Disconnecting...')
                             progress_callback.emit('disconnecting')
-                            for i in range(5):
-                                status = self.esp32_device.is_connected()
-                                self.log.info('Connected: {}'.format(status))
+                            status = self.esp32_device.is_connected()
+                            self.log.info('Connected: {}'.format(status))
+                            if self.quit_thread:
+                                break
+                            while True:
                                 if self.quit_thread:
                                     break
-                                while True:
-                                    if self.quit_thread:
-                                        break
-                                    self.log.info('Assert Disconnection...')
-                                    try:
-                                        self.esp32_device.disconnect(timeout=1)
-                                        time.sleep(1)
-                                        break
-                                    except Exception as e:
-                                        self.log.error('Disconnection timeout')
-                                        time.sleep(5)
+                                self.log.info('Assert Disconnection...')
+                                try:
+                                    self.esp32_device.disconnect(timeout=1)
+                                    time.sleep(1)
+                                    break
+                                except Exception as e:
+                                    self.log.error('Disconnection timeout')
+                                    time.sleep(5)
 
                         else:
                             self.log.info("THREAD MENU: Device disconnected")
@@ -962,6 +972,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         url = QUrl('https://github.com/Carglglz/bleico')
         QDesktopServices.openUrl(url)
 
+    def show_console(self):
+        self.console_logger.widget.show()
+
     def shutdown(self, loop):
         try:
             loop.stop()
@@ -994,6 +1007,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.log.error(e)
 
     def exit_app(self):
+        # self.log.removeHandler(self.console_logger)
         if self.debug:
             self.log.info('Closing now...')
             self.log.info('Done!')

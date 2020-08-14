@@ -67,14 +67,26 @@ class SetValueDialog(QWidget):
                 if 'Requirement' in self.char_fields[field]:
                     if self.char_fields[field]['Requirement'] == 'Mandatory':
                         ref_char = get_xml_char(self.char_fields[field]['Reference'])
-                        if len(ref_char.fields) == 1:
-                            for ref_field in ref_char.fields:
-                                self.char_fields[field] = ref_char.fields[ref_field]
+                        print(field, ref_char.name)
+                        if ref_char.name not in self._datetime_chars and ref_char.name not in self._date_chars:
+                            if len(ref_char.fields) == 1:
+                                for ref_field in ref_char.fields:
+                                    self.char_fields[field] = ref_char.fields[ref_field]
+                            else:
+                                self.char_fields.pop(field)
+                                # self.fields_to_pop.append(field)
+                                for ref_field in ref_char.fields:
+                                    self.char_fields[ref_field] = ref_char.fields[ref_field]
                         else:
-                            self.char_fields.pop(field)
-                            # self.fields_to_pop.append(field)
-                            for ref_field in ref_char.fields:
-                                self.char_fields[ref_field] = ref_char.fields[ref_field]
+                            self.opt_ref_fields[ref_char.name] = {}
+                            if len(ref_char.fields) == 1:
+                                for ref_field in ref_char.fields:
+                                    self.opt_ref_fields[ref_char.name][field] = ref_char.fields[ref_field]
+                            else:
+
+                                for ref_field in ref_char.fields:
+                                    self.opt_ref_fields[ref_char.name][ref_field] = ref_char.fields[ref_field]
+
                     else:
                         ref_char = get_xml_char(self.char_fields[field]['Reference'])
                         self.opt_ref_fields[ref_char.name] = {}
@@ -196,7 +208,11 @@ class SetValueDialog(QWidget):
                                     self.line_char[field].setDisplayFormat("yyyy-MM-dd hh:mm:ss")
                                 self.layout.addWidget(self.label_char[field])
                                 self.layout.addWidget(self.line_char[field])
-
+                    else:
+                        self.label_fields[field] = QLabel("{}".format(field))
+                        self.line_fields[field] = QLineEdit()
+                        self.layout.addWidget(self.label_fields[field])
+                        self.layout.addWidget(self.line_fields[field])
                 else:
                     self.label_fields[field] = QLabel(field)
                     self.format_fields[field] = self.char_fields[field]['Ctype']
