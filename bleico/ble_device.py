@@ -116,7 +116,8 @@ class BASE_BLE_DEVICE:
         self.ble_client = BleakClient(self.UUID)
         while n < n_tries:
             try:
-                await self.ble_client.connect(timeout=3)
+                await asyncio.wait_for(self.ble_client.connect(timeout=3),
+                                       timeout=60)
                 self.connected = await self.ble_client.is_connected()
                 if self.connected:
                     self.name = self.ble_client._device_info.name()
@@ -170,7 +171,7 @@ class BASE_BLE_DEVICE:
 
     def get_services(self, log=True):
         for service in self.ble_client.services:
-            if service.description == 'Unknown' and service.uuid.lower() in list(NUS.keys()):
+            if service.description == 'Nordic UART Service' and service.uuid.lower() in list(NUS.keys()):
                 is_NUS = True
                 if log:
                     print("[Service] {0}: {1}".format(

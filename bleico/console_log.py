@@ -35,6 +35,6 @@ class QPlainTextEditLogger(logging.Handler):
         self.widget.viewport().setPalette(p)
         self.widget.setStyleSheet("background-color: rgb(0, 0, 0); color: rgb(255, 255, 255)")
 
-    def emit(self, record):
+    def emit(self, record):  # emit callback, call adds msg to widget in main thread
         msg = self.format(record)
         self.widget.appendPlainText(msg)
