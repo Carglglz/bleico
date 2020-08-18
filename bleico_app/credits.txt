@@ -1,5 +1,7 @@
--Bleico icon :
+- Bleico icon :
   Chameleon by Carl Holderness from the Noun Project
 - Appearance Icons:
   Thermometer by Arthur Shlain from the Noun Project
   Rest: Google Material icons https://material.io/resources/icons/?style=baseline
+- DMG background:
+  Low Vectors by Vecteezy https://www.vecteezy.com/free-vector/low

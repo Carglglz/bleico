@@ -21,7 +21,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import sys
 from bleico.socket_client_server import socket_server
 from bleak.backends.corebluetooth.utils import cb_uuid_to_str
-from bleak.utils import get_char_value, pformat_char_value
+from bleak_sigspec.utils import get_char_value, pformat_char_value
 import os
 from bleico.ble_device import BLE_DEVICE  # get own ble_device
 from bleico.set_value_dialog import SetValueDialog

@@ -24,7 +24,7 @@ from datetime import datetime
 from bleak import BleakClient
 from bleak import discover
 from bleico.chars import ble_char_dict
-from bleak.utils import get_char_value, get_xml_char
+from bleak_sigspec.utils import get_char_value, get_xml_char
 from bleico.appearances import ble_appearances_dict
 from bleico.descriptors import ble_descriptors_dict
 import struct

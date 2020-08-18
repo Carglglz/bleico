@@ -20,8 +20,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 
 import ast
-from bleak.formatter import SuperStruct
-from bleak.utils import get_xml_char, _autoformat_reqs, _get_req
+from bleak_sigspec.formatter import SuperStruct
+from bleak_sigspec.utils import get_xml_char, _autoformat_reqs, _get_req
 from PyQt5.QtWidgets import (QWidget, QPushButton,
                              QComboBox, QVBoxLayout, QLabel, QLineEdit,
                              QDateTimeEdit, QScrollArea)

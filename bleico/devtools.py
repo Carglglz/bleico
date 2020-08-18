@@ -16,7 +16,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import os
 import json
 
-dev_dir = '.upydevices'
+dev_dir = '.bleico'
 dev_path = "{}/{}".format(os.environ['HOME'], dev_dir)
 
 
