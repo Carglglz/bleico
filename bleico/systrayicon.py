@@ -879,9 +879,9 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def subscribe_notify(self, progress_callback):  # run in thread
 
-        def readnotify_callback(sender_handle, data, sender_uuid, callb=progress_callback):
+        def readnotify_callback(sender_handle, data, callb=progress_callback):
 
-            char = uuidstr_to_str(cb_uuid_to_str(sender_uuid))
+            # char = uuidstr_to_str(cb_uuid_to_str(sender_uuid))
             try:
                 data_dict = {sender_handle: data}
                 callb.emit(data_dict)

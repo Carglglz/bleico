@@ -23,11 +23,8 @@ import struct
 from datetime import datetime
 from bleak import BleakClient
 from bleak import discover
-from bleico.chars import ble_char_dict
 from bleak_sigspec.utils import get_char_value, get_xml_char
 from bleico.appearances import ble_appearances_dict
-from bleico.descriptors import ble_descriptors_dict
-import struct
 import uuid as U_uuid
 import time
 import ast
@@ -49,11 +46,6 @@ def ble_scan(log=False):
 
     loop = asyncio.get_event_loop()
     return loop.run_until_complete(run())
-
-
-NUS = {"6e400001-b5a3-f393-e0a9-e50e24dcca9e": "Nordic UART Service",
-       "6e400003-b5a3-f393-e0a9-e50e24dcca9e": 'TX',
-       "6e400002-b5a3-f393-e0a9-e50e24dcca9e": 'RX'}
 
 
 class BASE_BLE_DEVICE:
@@ -170,12 +162,12 @@ class BASE_BLE_DEVICE:
 
     def get_services(self, log=True):
         for service in self.ble_client.services:
-            if service.description == 'Nordic UART Service' and service.uuid.lower() in list(NUS.keys()):
+            if service.description == 'Nordic UART Service':
                 is_NUS = True
                 if log:
                     print("[Service] {0}: {1}".format(
-                        service.uuid.lower(), NUS[service.uuid.lower()]))
-                self.services[NUS[service.uuid.lower()]] = {
+                        service.uuid.lower(), service.description))
+                self.services[service.description] = {
                     'UUID': service.uuid.lower(), 'CHARS': {}}
             else:
                 is_NUS = False
@@ -189,15 +181,15 @@ class BASE_BLE_DEVICE:
             for char in service.characteristics:
                 if is_NUS:
                     if "read" in char.properties or "notify" in char.properties:
-                        self.readables[NUS[char.uuid]] = char.uuid
+                        self.readables[char.description] = char.uuid
                     if "write" in char.properties:
-                        self.writeables[NUS[char.uuid]] = char.uuid
+                        self.writeables[char.description] = char.uuid
                     try:
-                        self.services[NUS[service.uuid.lower()]]['CHARS'][char.uuid] = {NUS[char.uuid]: ",".join(
+                        self.services[service.description]['CHARS'][char.uuid] = {char.description: ",".join(
                             char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
                     except Exception as e:
 
-                        self.services[NUS[service.uuid.lower()]]['CHARS'][char.uuid] = {char.description: ",".join(
+                        self.services[service.description]['CHARS'][char.uuid] = {char.description: ",".join(
                             char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
                 else:
                     self.services_rsum_handles[service.description].append(char.handle)
@@ -234,7 +226,7 @@ class BASE_BLE_DEVICE:
                     if is_NUS:
                         print("\t[Characteristic] {0}: ({1}) | Name: {2}".format(
                             char.uuid, ",".join(
-                                char.properties), NUS[char.uuid]))
+                                char.properties), char.description))
                     else:
                         try:
                             print("\t[Characteristic] {0}: ({1}) | Name: {2}".format(
