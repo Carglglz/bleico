@@ -17,12 +17,12 @@ import os
 import json
 
 dev_dir = '.bleico'
-dev_path = "{}/{}".format(os.environ['HOME'], dev_dir)
+dev_path = os.path.join(os.environ['HOME'], dev_dir)
 
 
 def setup_devs_dir(debug=False, name_dir=dev_dir):
     if name_dir not in os.listdir("{}".format(os.environ['HOME'])):
-        os.mkdir("{}/{}".format(os.environ['HOME'], name_dir))
+        os.mkdir(os.path.join(os.environ['HOME'], name_dir))
         if debug:
             print('{} directory created in HOME:{} directory'.format(name_dir, os.environ['HOME']))
 
@@ -34,7 +34,7 @@ def store_dev(name, ip=None, passwd=None, s_port=None, dir=dev_path,
     dev_s_port = s_port
     dev_conf = {'ip': dev_ip, 'passwd': dev_pass,
                 's_port': dev_s_port}
-    file_conf = '{}/{}.config'.format(dir, name)
+    file_conf = os.path.join(dir, '{}.config'.format(name))
     for key, val in kargs.items():
         if key not in dev_conf.keys():
             dev_conf[key] = val
@@ -46,7 +46,7 @@ def store_dev(name, ip=None, passwd=None, s_port=None, dir=dev_path,
 
 def load_dev(name, dir=dev_path, debug=False):
     try:
-        file_conf = '{}/{}.config'.format(dir, name)
+        file_conf = os.path.join(dir, '{}.config'.format(name))
         with open(file_conf, 'r') as config_file:
             dev_conf = json.loads(config_file.read())
         return dev_conf

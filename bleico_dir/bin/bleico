@@ -46,14 +46,14 @@ parser = argparse.ArgumentParser(prog='bleico',
                                  usage=usag)
 parser.version = '0.0.1'
 parser.add_argument(
-    "m", metavar='Mode', help=helparg)
+    "m", metavar='Mode', help=helparg).completer = ChoicesCompleter(keywords_mode)
 parser.add_argument('-v', action='version')
 parser.add_argument('-t', help='device target uuid')
 parser.add_argument('-r', help='read timeout in seconds', type=int, default=1)
 parser.add_argument('-debug', help='debug info log', action='store_true')
 parser.add_argument('-dflev',
-                    help='debug file mode level, options [debug, info, warning, error, critical]',
-                    default='error').completer = ChoicesCompleter(log_levs)
+                    help='debug file mode level, options [debug, info, warning, error, critical]'
+                    ).completer = ChoicesCompleter(log_levs)
 parser.add_argument('-dslev',
                     help='debug sys out mode level, options [debug, info, warning, error, critical]',
                     default='info').completer = ChoicesCompleter(log_levs)
@@ -65,17 +65,17 @@ SRC_PATH_SOUND = os.path.join(bleico.__path__[0], 'sounds')
 #############################################
 
 
-if '.blewiz' not in os.listdir(os.environ['HOME']):
-    os.mkdir(os.path.join(os.environ['HOME'], ".blewiz"))
+if '.bleico' not in os.listdir(os.environ['HOME']):
+    os.mkdir(os.path.join(os.environ['HOME'], ".bleico"))
 # Config device option
 if args.m == 'config':
     if args.t is None:
         print('Target uuid required, see -t')
         sys.exit()
     store_dev('bleico_', uuid=args.t, read_timeout=args.r,
-              dir=os.path.join(os.environ['HOME'], ".blewiz"))
+              dir=os.path.join(os.environ['HOME'], ".bleico"))
 
-    print('bleico device settings saved in .blewiz directory!')
+    print('bleico device settings saved in ~/.bleico directory!')
     sys.exit()
 
 if args.m == 'run':
@@ -95,8 +95,9 @@ $$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
     print('*'*60)
 
     config_file_name = 'bleico_.config'
-    config_file_path = os.path.join(os.environ['HOME'], ".blewiz")
+    config_file_path = os.path.join(os.environ['HOME'], ".bleico")
     device_is_configurated = config_file_name in os.listdir(config_file_path)
+
     # Logging Setup
 
     log_levels = {'debug': logging.DEBUG, 'info': logging.INFO,
@@ -111,6 +112,21 @@ $$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
         handlers=[handler])
     log = logging.getLogger('bleico')
     log.info('Running bleico {}'.format(parser.version))
+
+    # File logging if enabled
+    if args.dflev:
+        logfolder = 'logs'
+        logPath = os.path.join(config_file_path, logfolder)
+        if logfolder not in os.listdir(config_file_path):
+            os.mkdir(logPath)
+        logfileName = 'bleico_debug.log'
+        # Filehandler for error
+        fh_err = logging.FileHandler(os.path.join(logPath, logfileName))
+        fh_err.setLevel(log_levels[args.dflev])
+        # Formatter for errors
+        fmt_err = logging.Formatter("%(asctime)s [%(name)s] [%(levelname)s]  %(message)s")
+        fh_err.setFormatter(fmt_err)
+        log.addHandler(fh_err)
 
 
 def main():

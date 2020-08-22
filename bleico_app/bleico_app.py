@@ -55,7 +55,7 @@ print(banner)
 print('*'*60)
 
 config_file_name = 'bleico_.config'
-config_file_path = os.path.join(os.environ['HOME'], ".blewiz")
+config_file_path = os.path.join(os.environ['HOME'], ".bleico")
 device_is_configurated = config_file_name in os.listdir(config_file_path)
 # Logging Setup
 

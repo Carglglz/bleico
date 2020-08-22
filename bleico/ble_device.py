@@ -24,7 +24,6 @@ from datetime import datetime
 from bleak import BleakClient
 from bleak import discover
 from bleak_sigspec.utils import get_char_value, get_xml_char
-from bleico.appearances import ble_appearances_dict
 import uuid as U_uuid
 import time
 import ast
@@ -863,7 +862,7 @@ class BLE_DEVICE(BASE_BLE_DEVICE):
                     print(traceback.format_exc())
                     # pass
         else:
-            self.appearance = ble_appearances_dict[self.appearance]
+            self.appearance = 'UNKNOWN'
             self.device_info[APPR] = self.appearance
 
     def get_MAC_addrs(self):
