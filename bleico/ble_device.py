@@ -681,6 +681,9 @@ class BLE_DEVICE(BASE_BLE_DEVICE):
         self.get_MANUFACTURER()
         self.get_MODEL_NUMBER()
         self.get_FIRMWARE_REV()
+        self.get_SERIAL_NUMBER()
+        self.get_HARDWARE_REV()
+        self.get_SOFTWARE_REV()
         self.batt_power_state = {'Charging': 'Unknown', 'Discharging': 'Unknown',
                                  'Level': 'Unknown', 'Present': 'Unknown'}
         self.get_batt_power_state()
@@ -921,6 +924,49 @@ class BLE_DEVICE(BASE_BLE_DEVICE):
                     print(e)
         else:
             self.device_info[FMW] = self.firmware_rev
+
+    def get_SERIAL_NUMBER(self):
+        SNS = 'Serial Number String'
+        if self._devinfoserv in self.services.keys():
+            if SNS in self.chars_xml.keys():
+                try:
+                    serial_string = self.read_char(
+                        key=SNS, data_fmt=self.chars_xml[SNS].fields['Serial Number']['Ctype'])
+                    self.device_info[SNS] = serial_string
+                except Exception as e:
+                    print(e)
+
+    def get_HARDWARE_REV(self):
+        HRS = 'Hardware Revision String'
+        if self._devinfoserv in self.services.keys():
+            if HRS in self.chars_xml.keys():
+                try:
+                    hardware_string = self.read_char(
+                        key=HRS, data_fmt=self.chars_xml[HRS].fields['Hardware Revision']['Ctype'])
+                    self.device_info[HRS] = hardware_string
+                except Exception as e:
+                    print(e)
+
+    def get_SOFTWARE_REV(self):
+        SRS = 'Software Revision String'
+        if self._devinfoserv in self.services.keys():
+            if SRS in self.chars_xml.keys():
+                try:
+                    software_string = self.read_char(
+                        key=SRS, data_fmt=self.chars_xml[SRS].fields['Software Revision']['Ctype'])
+                    self.device_info[SRS] = software_string
+                except Exception as e:
+                    print(e)
+
+    def get_SYSTEM_ID(self):
+        SID = 'System ID'
+        if self._devinfoserv in self.services.keys():
+            if SID in self.chars_xml.keys():
+                try:
+                    sys_id = self.get_char_value(SID)
+                    self.device_info[SID] = '{}-{}'.format(*[val['Value'] for val in list(sys_id.values())])
+                except Exception as e:
+                    print(e)
 
     def unpack_batt_power_state(self):
         pow_skeys = self.get_char_value('Battery Power State')

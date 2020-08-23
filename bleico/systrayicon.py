@@ -197,7 +197,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         # AVOID READ CHARS
         self.avoid_chars = ['Appearance', 'Manufacturer Name String',
                             'Battery Power State', 'Model Number String',
-                            'Firmware Revision String']
+                            'Firmware Revision String', 'Serial Number String',
+                            'Hardware Revision String',
+                            'Software Revision String']
         self.avoid_field_strings = ['Measurement', 'Value', 'String',
                                     '(uint8)', '(uint16)', 'Compound']
 
@@ -237,8 +239,11 @@ class SystemTrayIcon(QSystemTrayIcon):
                 self.devinfo_menu = self.menu.addMenu(key)
                 for char_handle in self.esp32_device.services_rsum_handles[key]:
                     char = self.esp32_device.readables_handles[char_handle]
-                    self.char_actions_dict[char_handle] = self.devinfo_menu.addAction("{}: {}".format(char.replace('String', ''), self.esp32_device.device_info[char]))
-                    self.char_actions_dict[char_handle].setEnabled(False)
+                    try:
+                        self.char_actions_dict[char_handle] = self.devinfo_menu.addAction("{}: {}".format(char.replace('String', ''), self.esp32_device.device_info[char]))
+                        self.char_actions_dict[char_handle].setEnabled(False)
+                    except Exception as e:
+                        print(e)
                 self.menu.addSeparator()
             else:
                 serv.setEnabled(False)
