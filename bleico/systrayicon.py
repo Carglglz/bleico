@@ -506,12 +506,15 @@ class SystemTrayIcon(QSystemTrayIcon):
                                 else:
                                     self.log.info('Showing {} Set Value Control'.format(char))
                                     self.write_char_actions_dict[char_handle]["set_value_box"].show()
+                                    self.write_char_actions_dict[char_handle]["set_value_box"].raise_()
                             else:
                                 self.log.info('Showing {} Set Value Control'.format(char))
                                 self.write_char_actions_dict[char_handle]["set_value_box"].show()
+                                self.write_char_actions_dict[char_handle]["set_value_box"].raise_()
                     else:
                         self.log.info('Showing {} Set Value Control'.format(char))
                         self.write_char_actions_dict[char_handle]["set_value_box"].show()
+                        self.write_char_actions_dict[char_handle]["set_value_box"].raise_()
 
     def toggle_desktop_notify(self, checked):
         action = self.sender()
@@ -974,6 +977,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def show_checklist_dialog(self):
         self.set_tool_tip_dialog.show()
+        self.set_tool_tip_dialog.raise_()
 
     def format_tool_tip(self):
         tooltip_string_list = []

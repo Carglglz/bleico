@@ -1,14 +1,6 @@
 
-$ pyinstaller -w -y -n bleico -i bleico.icns --windowed bleico.spec
-
+$ ./clean_prev.sh
+$ ./freeze_ap.sh
 $ cd dist
-
-$ ./dmg_sign_verify
-
-OR
-
-$ appdmg bleico_appdmg.json bleico_img.dmg
-$ shasum -a 256 bleico_img.dmg > SHA256
-$ shasum -c SHA256
-$ gpg -a --detach-sign bleico_img.dmg
-$ gpg --verify bleico_img.dmg.asc
+[CHANGE icon manually]
+$ ./dmg_sign_verify.sh
