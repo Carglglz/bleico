@@ -535,12 +535,18 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.ready_to_exit = True
         elif data == 'disconnected':
             self.notify("Disconnection event", 'Device {} is now disconnected'.format(self.esp32_device.name))
-            for char_handle in self.chars_to_notify_handles:
+            for char_handle in self.esp32_device.notifiables_handles:
                 char = self.esp32_device.notifiables_handles[char_handle]
-                self.notify_char_actions_dict[char_handle].setText('Notify')
-                self.log.info("Char: {} Notification Disabled".format(char))
-                self.chars_to_notify.remove(char)
-                self.chars_to_notify_handles.remove(char_handle)
+                self.notify_char_actions_dict[char_handle].setEnabled(False)
+                self.log.info("Char: {} Notification Actions Disabled".format(char))
+                # self.chars_to_notify.remove(char)
+                # self.chars_to_notify_handles.remove(char_handle)
+            for char_handle in self.write_char_actions_dict:
+                for action in self.write_char_actions_dict[char_handle]:
+                    if action != 'set_value_box':
+                        self.write_char_actions_dict[char_handle][action].setEnabled(False)
+                    else:
+                        self.write_char_actions_dict[char_handle][action].hide()
             self.device_status_action.setText('Status: Disconnected')
         elif data == 'disconnecting':
             self.device_status_action.setText('Status: Disconnecting...')
@@ -555,6 +561,17 @@ class SystemTrayIcon(QSystemTrayIcon):
                         'Device {} is now connected'.format(self.esp32_device.name),
                         typeicon='Info')
             self.device_status_action.setText('Status: Connected')
+            for char_handle in self.esp32_device.notifiables_handles:
+                char = self.esp32_device.notifiables_handles[char_handle]
+                if char_handle in self.chars_to_notify_handles:
+                    self.main_server.send_message("start:{}:{}".format(char_handle, char))
+                    time.sleep(1)
+                self.notify_char_actions_dict[char_handle].setEnabled(True)
+                self.log.info("Char: {} Notification Actions Enabled".format(char))
+            for char_handle in self.write_char_actions_dict:
+                for action in self.write_char_actions_dict[char_handle]:
+                    if action != 'set_value_box':
+                        self.write_char_actions_dict[char_handle][action].setEnabled(True)
         elif data == 'timeupdate':
             self.last_update_action.setText("Last Update: {}".format(datetime.strftime(datetime.now(), "%H:%M:%S")))
 

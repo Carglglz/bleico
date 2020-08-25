@@ -2,6 +2,11 @@
 $ pyinstaller -w -y -n bleico -i bleico.icns --windowed bleico.spec
 
 $ cd dist
+
+$ ./dmg_sign_verify
+
+OR
+
 $ appdmg bleico_appdmg.json bleico_img.dmg
 $ shasum -a 256 bleico_img.dmg > SHA256
 $ shasum -c SHA256
