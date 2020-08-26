@@ -23,11 +23,13 @@ import logging
 import sys
 import bleico
 from bleico.systrayicon import SystemTrayIcon
+from bleico.ble_scanner_widget import BleScanner
 import os
 import argparse
 from bleico.devtools import store_dev, load_dev
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QCoreApplication
 from argcomplete.completers import ChoicesCompleter
 
 helparg = '''Mode:
@@ -49,6 +51,7 @@ parser.add_argument(
     "m", metavar='Mode', help=helparg).completer = ChoicesCompleter(keywords_mode)
 parser.add_argument('-v', action='version')
 parser.add_argument('-t', help='device target uuid')
+parser.add_argument('-s', help='show scanner with available devices', action='store_true')
 parser.add_argument('-r', help='read timeout in seconds', type=int, default=1)
 parser.add_argument('-debug', help='debug info log', action='store_true')
 parser.add_argument('-dflev',
@@ -133,19 +136,55 @@ def main():
     app = QApplication([])
     app.setQuitOnLastWindowClosed(False)
 
+    # Do Ble Scanner if args.s
+    if args.s:
+        log.info("SCANNING AVAILABLE DEVICES...")
+        Scanner = BleScanner(SRC_PATH=SRC_PATH, log=log)
+        Scanner.show()
+        while Scanner.device_to_connect is None:
+            QCoreApplication.processEvents()
+
+        if Scanner.device_to_connect != 'CANCEL':
+            args.t = Scanner.device_to_connect
+        else:
+            sys.exit()
+
     # Open Bledevice configuration
     if device_is_configurated:
         if args.t is None:
             upy_conf = load_dev('bleico_', dir=config_file_path)
             if upy_conf is None:
-                log.error("CONFIGURATION FILE NOT FOUND")
+                log.error("CONFIGURATION FILE NOT FOUND, SCANNING AVAILABLE DEVICES...")
                 # TODO: FALLBACK TO SCANNER DIALOG
+                Scanner = BleScanner(SRC_PATH=SRC_PATH, log=log)
+                Scanner.show()
+                while Scanner.device_to_connect is None:
+                    QCoreApplication.processEvents()
+
+                if Scanner.device_to_connect != 'CANCEL':
+                    upy_conf = {'uuid': Scanner.device_to_connect, 'read_timeout': args.r}
+                else:
+                    sys.exit()
+        else:
+            upy_conf = {'uuid': args.t, 'read_timeout': args.r}
+    else:
+        if args.t is None:
+            log.error("CONFIGURATION FILE NOT FOUND, SCANNING AVAILABLE DEVICES...")
+            # TODO: FALLBACK TO SCANNER DIALOG
+            Scanner = BleScanner(SRC_PATH=SRC_PATH, log=log)
+            Scanner.show()
+            while Scanner.device_to_connect is None:
+                QCoreApplication.processEvents()
+
+            if Scanner.device_to_connect != 'CANCEL':
+                upy_conf = {'uuid': Scanner.device_to_connect, 'read_timeout': args.r}
+            else:
                 sys.exit()
+
         else:
             upy_conf = {'uuid': args.t, 'read_timeout': args.r}
 
     # Create the icon
-
     icon = QIcon(os.path.join(SRC_PATH, "UNKNOWN.png"))
     icon.setIsMask(True)
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],

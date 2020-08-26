@@ -19,10 +19,12 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 import logging
 import sys
 from bleico.systrayicon import SystemTrayIcon
+from bleico.ble_scanner_widget import BleScanner
 import os
 from bleico.devtools import load_dev
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QCoreApplication
 
 frozen = 'not'
 if getattr(sys, 'frozen', False):
@@ -83,7 +85,26 @@ def main():
         if 'read_timeout' not in upy_conf.keys():
             upy_conf['read_timeout'] = 1
         if upy_conf is None:
-            log.error("CONFIGURATION FILE NOT FOUND")
+            log.error("CONFIGURATION FILE NOT FOUND, SCANNING AVAILABLE DEVICES...")
+            Scanner = BleScanner(SRC_PATH=SRC_PATH, log=log)
+            Scanner.show()
+            while Scanner.device_to_connect is None:
+                QCoreApplication.processEvents()
+
+            if Scanner.device_to_connect != 'CANCEL':
+                upy_conf = {'uuid': Scanner.device_to_connect, 'read_timeout': 1}
+            else:
+                sys.exit()
+    else:
+        log.error("CONFIGURATION FILE NOT FOUND, SCANNING AVAILABLE DEVICES...")
+        Scanner = BleScanner(SRC_PATH=SRC_PATH, log=log)
+        Scanner.show()
+        while Scanner.device_to_connect is None:
+            QCoreApplication.processEvents()
+
+        if Scanner.device_to_connect != 'CANCEL':
+            upy_conf = {'uuid': Scanner.device_to_connect, 'read_timeout': 1}
+        else:
             sys.exit()
     # Create the icon
 

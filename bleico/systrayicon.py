@@ -160,6 +160,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 time.sleep(2)
                 self._ntries += 1
             else:
+                # TODO: FALLBACK TO BLE SCANNNER
                 self.log.error("Device {} not found".format(device_uuid))
                 self.splash.clearMessage()
                 self.splash.showMessage("Device {} not found".format(device_uuid),
