@@ -23,7 +23,7 @@ from setuptools import setup
 setup(name='bleico',
       version='0.0.1',
       description='Bluetooth Low Energy System Tray App',
-      url='http://github.com/cgglz/bleico',
+      url='http://github.com/Carglglz/bleico',
       author='Carlos Gil Gonzalez',
       author_email='carlosgilglez@gmail.com',
       license='GPL-3.0',
