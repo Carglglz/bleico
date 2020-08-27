@@ -20,15 +20,14 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 import sys
 from bleico.socket_client_server import socket_server
-from bleak.backends.corebluetooth.utils import cb_uuid_to_str
 from bleak_sigspec.utils import get_char_value, pformat_char_value
 import os
 from bleico.ble_device import BLE_DEVICE  # get own ble_device
 from bleico.set_value_dialog import SetValueDialog
 from bleico.set_tooltip_dialog import ChecklistDialog
+from bleico.ble_scanner_widget import BleScanner
 # from bleico.console_log import QPlainTextEditLogger
-from bleak.uuids import uuidstr_to_str
-# import logging
+from PyQt5.QtCore import QCoreApplication
 from datetime import datetime
 import time
 import struct
@@ -127,7 +126,7 @@ class Worker(QRunnable):
 
 class SystemTrayIcon(QSystemTrayIcon):
     def __init__(self, icon, parent=None, device_uuid=None,
-                 logger=None, debug=False, max_tries=1, read_timeout=1,
+                 logger=None, debug=False, max_tries=0, read_timeout=1,
                  SRC_PATH=None, SRC_PATH_SOUND=None):
         QSystemTrayIcon.__init__(self, icon, parent)
         self.debug = debug
@@ -157,18 +156,35 @@ class SystemTrayIcon(QSystemTrayIcon):
         while not self.esp32_device.connected:
             if self._ntries <= max_tries:
                 self.esp32_device = BLE_DEVICE(device_uuid, init=True)
-                time.sleep(2)
+                time.sleep(1)
                 self._ntries += 1
             else:
-                # TODO: FALLBACK TO BLE SCANNNER
                 self.log.error("Device {} not found".format(device_uuid))
                 self.splash.clearMessage()
                 self.splash.showMessage("Device {} not found".format(device_uuid),
                                         Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
-                time.sleep(2)
+                # time.sleep(2)
                 self.splash.clearMessage()
                 self.splash.close()
-                sys.exit()
+                Scanner = BleScanner(SRC_PATH=SRC_PATH, log=self.log)
+                while not self.esp32_device.connected:
+                    Scanner.show()
+                    Scanner.raise_()
+                    while Scanner.device_to_connect is None:
+                        QCoreApplication.processEvents()
+
+                    if Scanner.device_to_connect != 'CANCEL':
+                        self.log.info('Connecting to device {} ...'.format(Scanner.device_to_connect))
+                        self.esp32_device = BLE_DEVICE(Scanner.device_to_connect,
+                                                       init=True)
+                        if self.esp32_device.connected:
+                            Scanner.hide()
+                            break
+                        else:
+                            Scanner.device_to_connect = None
+                    else:
+                        sys.exit()
+                Scanner.hide()
         self.splash.clearMessage()
         # Get RSSI
         _rssi_init_val = self.esp32_device.get_RSSI()

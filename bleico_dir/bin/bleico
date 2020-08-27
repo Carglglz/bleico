@@ -155,7 +155,6 @@ def main():
             upy_conf = load_dev('bleico_', dir=config_file_path)
             if upy_conf is None:
                 log.error("CONFIGURATION FILE NOT FOUND, SCANNING AVAILABLE DEVICES...")
-                # TODO: FALLBACK TO SCANNER DIALOG
                 Scanner = BleScanner(SRC_PATH=SRC_PATH, log=log)
                 Scanner.show()
                 while Scanner.device_to_connect is None:
