@@ -56,8 +56,9 @@ class ScanDeviceItem(QtWidgets.QWidget):
 
     def setIcon(self, imagePath):
         pixmap = QtGui.QPixmap(imagePath)
-        pixmap_scaled = pixmap.scaled(48, 48, Qt.KeepAspectRatio,
+        pixmap_scaled = pixmap.scaled(128, 128, Qt.KeepAspectRatio,
                                       transformMode=Qt.SmoothTransformation)
+        pixmap_scaled.setDevicePixelRatio(2.0)
         self.iconQLabel.setPixmap(pixmap_scaled)
 
 
