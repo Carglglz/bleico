@@ -137,6 +137,8 @@ class BleScanner(QtWidgets.QWidget):
         if len(self.devices) == 0:
             self.log.info('No BLE device found')
         else:
+            self.devices = sorted(self.devices, key=lambda dev: dev.rssi)
+            self.devices.reverse()
             self.log.info('BLE device/s found: {}'.format(len(self.devices)))
             for dev in self.devices:
                 services = []
