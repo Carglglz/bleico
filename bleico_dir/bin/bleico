@@ -110,7 +110,7 @@ $$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
     handler.setLevel(log_levels[args.dslev])
     logging.basicConfig(
         level=log_levels['debug'],
-        format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
+        format="%(asctime)s [%(name)s] [%(threadName)s] [%(levelname)s] %(message)s",
         # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
         handlers=[handler])
     log = logging.getLogger('bleico')
@@ -127,7 +127,7 @@ $$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
         fh_err = logging.FileHandler(os.path.join(logPath, logfileName))
         fh_err.setLevel(log_levels[args.dflev])
         # Formatter for errors
-        fmt_err = logging.Formatter("%(asctime)s [%(name)s] [%(levelname)s]  %(message)s")
+        fmt_err = logging.Formatter("%(asctime)s [%(name)s] [%(threadName)s] [%(levelname)s]  %(message)s")
         fh_err.setFormatter(fmt_err)
         log.addHandler(fh_err)
 

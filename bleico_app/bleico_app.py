@@ -68,7 +68,7 @@ handler = logging.StreamHandler(sys.stdout)
 handler.setLevel(log_levels['info'])
 logging.basicConfig(
     level=log_levels['debug'],
-    format="%(asctime)s [%(name)s] [%(levelname)s] %(message)s",
+    format="%(asctime)s [%(name)s] [%(threadName)s] [%(levelname)s] %(message)s",
     # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
     handlers=[handler])
 log = logging.getLogger('bleico')

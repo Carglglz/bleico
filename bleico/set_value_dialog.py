@@ -232,12 +232,12 @@ class SetValueDialog(QWidget):
         self.button_config = QPushButton('Set')
         self.button_config.move(20, 80)
         self.button_config.clicked.connect(self.on_push)
-        self.layout.addWidget(self.button_config)
         self.top_widget.setLayout(self.layout)
         self.scrollArea.setWidget(self.top_widget)
         self.scrollArea.setWidgetResizable(True)
         # self.scrollArea.setFixedHeight(400)
         self.scroll_layout.addWidget(self.scrollArea)
+        self.scroll_layout.addWidget(self.button_config)
         self.setLayout(self.scroll_layout)
         self.setWindowTitle("Set {} Value".format(self.char.name))
 

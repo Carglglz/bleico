@@ -19,6 +19,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 """
 
 import sys
+import threading
 from bleico.socket_client_server import socket_server
 from bleak_sigspec.utils import get_char_value, pformat_char_value
 import os
@@ -705,6 +706,8 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def update_menu(self, progress_callback):  # define the notify callback inside that takes progress_callback as variable
         connect_loop = False
+        qthread = threading.current_thread()
+        qthread.name = 'BleDevThread'
         while not self.quit_thread:
             if self.quit_thread:
                 break
@@ -751,7 +754,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                                     time.sleep(5)
 
                         else:
-                            self.log.info("THREAD MENU: Device disconnected")
+                            self.log.info("Device disconnected")
                             progress_callback.emit('disconnected')
                             self.esp32_device.connected = False
                             connect_loop = True
@@ -762,23 +765,23 @@ class SystemTrayIcon(QSystemTrayIcon):
                         if self.esp32_device.is_connected():
                             self._timeout_count = 0
                         else:
-                            self.log.info("THREAD MENU: Device disconnected")
+                            self.log.info("Device disconnected")
                             progress_callback.emit('disconnected')
                             self.esp32_device.connected = False
                             connect_loop = True
                             time.sleep(4)
                 else:
                     self._timeout_count = 0
-                    self.log.info("THREAD MENU: Trying to reconnect...")
+                    self.log.info("Trying to reconnect...")
                     progress_callback.emit('reconnecting')
                     self.esp32_device.connect()
                     if self.esp32_device.connected:
-                        self.log.info("THREAD MENU: Device reconnected...")
+                        self.log.info("Device reconnected...")
                         progress_callback.emit('connected')
                         connect_loop = False
                     else:
-                        self.log.info("THREAD MENU: Device unreachable...")
-                        self.log.info("THREAD MENU: Trying again in 30 seconds")
+                        self.log.info("Device unreachable...")
+                        self.log.info("Trying again in 30 seconds")
                         for i in range(29):
                             progress_callback.emit(['reconnect', i])
                             time.sleep(1)
@@ -791,7 +794,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         progress_callback.emit("finished")
         time.sleep(1)
         self.ready_to_exit = True
-        self.log.info("THREAD MENU: FINISHED")
+        self.log.info("FINISHED")
 
     def start_update_menu(self):
         # Pass the function to execute
@@ -920,6 +923,8 @@ class SystemTrayIcon(QSystemTrayIcon):
                 self.log.error(traceback.format_exc())
 
     def subscribe_notify(self, progress_callback):  # run in thread
+        qthread = threading.current_thread()
+        qthread.name = 'NotifyThread'
 
         def readnotify_callback(sender_handle, data, callb=progress_callback):
 
@@ -939,14 +944,14 @@ class SystemTrayIcon(QSystemTrayIcon):
             while True:
                 data = await aio_client_r.read(1024)
                 message = data.decode()
-                self.log.info('NOTIFY_THREAD: {}'.format(message))
+                self.log.info('{}'.format(message))
                 if message == 'exit':
                     aio_client_w.write('ok'.encode())
-                    self.log.info('NOTIFY_THREAD: {}'.format("Stopping notification now..."))
+                    self.log.info('{}'.format("Stopping notification now..."))
                     for char_handle in self.chars_to_notify_handles:
                         await self.esp32_device.ble_client.stop_notify(char_handle)
                     aio_client_w.close()
-                    self.log.info('NOTIFY_THREAD: {}'.format("Done!"))
+                    self.log.info('{}'.format("Done!"))
                     self.char_to_notify = None
                     break
                 else:
@@ -965,8 +970,8 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.notify_loop.run_until_complete(as_char_notify())
 
         except Exception as e:
-            self.log.error('NOTIFY_THREAD: {}'.format(e))
-        self.log.info('NOTIFY_THREAD: {}'.format("THREAD FINISHED"))
+            self.log.error('{}'.format(e))
+        self.log.info('{}'.format("FINISHED"))
 
     def start_notify_char(self):
         # Pass the function to execute
@@ -981,7 +986,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.port = self.main_server.get_free_port()  # start stop multiple chars to notify
         self.threadpool.start(worker_notify)
         self.main_server.start_SOC()
-        self.log.info("NOTIFY_THREAD: {}".format(self.main_server.recv_message()))
+        self.log.info("[NotifyThread] {}".format(self.main_server.recv_message()))
 
     def notify(self, typemessage, message, typeicon='Warning'):
         """Generate a desktop notification"""
