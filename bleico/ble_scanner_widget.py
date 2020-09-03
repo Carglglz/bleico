@@ -158,7 +158,7 @@ class BleScanner(QtWidgets.QWidget):
         item = self.myQListWidget.currentItem()
         lw = self.myQListWidget.itemWidget(item)
         self.selected_device = lw.deviceQLabel.text().split('\n')[-1].replace('UUID: ', '')
-        print(self.selected_device)
+        self.log.info("Device selected: {}".format(self.selected_device))
         self.connectButton.setEnabled(True)
         self.saveButton.setEnabled(True)
 
@@ -210,6 +210,7 @@ class BleScanner(QtWidgets.QWidget):
         if self.selected_device:
             self.hide()
             self.device_to_connect = self.selected_device
+            self.log.info("Connecting to: {}".format(self.selected_device))
 
     def scan_again(self):
         self.connectButton.setEnabled(False)

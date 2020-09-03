@@ -899,7 +899,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                     if self.debug:
                         for serv in self.esp32_device.services_rsum.keys():
                             if char in self.esp32_device.services_rsum[serv]:
-                                self.log.info("Notification: {} [{}] : {}".format(serv, char, data_value_string))
+                                self.log.info("Notification: [{}] {} : {}".format(serv, char, data_value_string))
                 else:
                     data_value = get_char_value(data[char_handle], self.esp32_device.chars_xml[char])
                     self.esp32_device.batt_power_state = self.esp32_device.map_powstate(data_value['State']['Value'])
@@ -915,7 +915,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                     if self.debug:
                         for serv in self.esp32_device.services_rsum.keys():
                             if char in self.esp32_device.services_rsum[serv]:
-                                self.log.info("Notification: {} [{}] : {} {}".format(serv,
+                                self.log.info("Notification: [{}] {} : {} {}".format(serv,
                                                                                      char, self.esp32_device.batt_power_state['Charging State'],
                                                                                      self.esp32_device.batt_power_state['Level']))
         except Exception as e:
@@ -940,6 +940,7 @@ class SystemTrayIcon(QSystemTrayIcon):
             aio_client_w.write('started'.encode())
             for char_handle in self.chars_to_notify_handles:
                 await self.esp32_device.ble_client.start_notify(char_handle, notify_callback)
+                self.log.info('Started Notification on: {}'.format(self.esp32_device.notifiables_handles[char_handle]))
             await asyncio.sleep(1)
             while True:
                 data = await aio_client_r.read(1024)
@@ -947,7 +948,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                 self.log.info('{}'.format(message))
                 if message == 'exit':
                     aio_client_w.write('ok'.encode())
-                    self.log.info('{}'.format("Stopping notification now..."))
+                    self.log.info('{}'.format("Stopping notifications now..."))
                     for char_handle in self.chars_to_notify_handles:
                         await self.esp32_device.ble_client.stop_notify(char_handle)
                     aio_client_w.close()
@@ -960,8 +961,10 @@ class SystemTrayIcon(QSystemTrayIcon):
                     # char = self.esp32_device.notifiables_handles[char_handle]
                     if action == 'start':
                         await self.esp32_device.ble_client.start_notify(char_handle, notify_callback)
+                        self.log.info('Started Notification on: {}'.format(char))
                     if action == 'stop':
                         await self.esp32_device.ble_client.stop_notify(char_handle)
+                        self.log.info('Stopped Notification on: {}'.format(char))
                     await asyncio.sleep(1)
 
         # GET NEW EVENT LOOP AND RUN
@@ -982,7 +985,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         worker_notify.signals.progress.connect(self.receive_notification)
 
         # Execute
-        self.main_server = socket_server(8845)
+        self.main_server = socket_server(8845, log=self.log)
         self.port = self.main_server.get_free_port()  # start stop multiple chars to notify
         self.threadpool.start(worker_notify)
         self.main_server.start_SOC()

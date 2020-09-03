@@ -53,7 +53,6 @@ parser.add_argument('-v', action='version')
 parser.add_argument('-t', help='device target uuid')
 parser.add_argument('-s', help='show scanner with available devices', action='store_true')
 parser.add_argument('-r', help='read timeout in seconds', type=int, default=1)
-parser.add_argument('-debug', help='debug info log', action='store_true')
 parser.add_argument('-dflev',
                     help='debug file mode level, options [debug, info, warning, error, critical]'
                     ).completer = ChoicesCompleter(log_levs)
@@ -187,7 +186,7 @@ def main():
     icon = QIcon(os.path.join(SRC_PATH, "UNKNOWN.png"))
     icon.setIsMask(True)
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
-                              logger=log, debug=args.debug,
+                              logger=log, debug=True,
                               read_timeout=upy_conf['read_timeout'],
                               SRC_PATH=SRC_PATH, SRC_PATH_SOUND=SRC_PATH_SOUND)
     # Menu Update

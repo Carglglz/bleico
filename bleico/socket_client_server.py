@@ -48,7 +48,7 @@ class socket_server:
     Socket server simple class
     """
 
-    def __init__(self, port, buff=1024):
+    def __init__(self, port, buff=1024, log=None):
 
         self.host = 'localhost'
         self.port = port
@@ -58,6 +58,7 @@ class socket_server:
         self.buff = bytearray(buff)
         self.conn = None
         self.addr_client = None
+        self.log = log
 
     def get_free_port(self):
         while True:
@@ -70,10 +71,9 @@ class socket_server:
 
     def start_SOC(self):
         self.serv_soc.listen(1)
-        print('Server listening...')
+        self.log.info('Notification Server listening...')
         self.conn, self.addr_client = self.serv_soc.accept()
-        print('Connection received...')
-        print(self.addr_client)
+        self.log.info('Connection received from [NotifyThread]: {}'.format(self.addr_client))
         self.conn.settimeout(10)
 
     def send_message(self, message):
