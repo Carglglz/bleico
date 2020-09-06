@@ -1,6 +1,6 @@
 # Bleico
 
-<img src="/Users/carlosgilgonzalez/Desktop/IBM_PROJECTS/MICROPYTHON/TOOLS/UTILS/bleico/docs/bleico_logo-02.png" style="zoom:16%;" align="center"/>
+<img src="https://raw.githubusercontent.com/Carglglz/bleico/master/docs/bleico_logo.png?token=ADTVSVBACZFRZQTUBLR3EKK7KVRXO" style="zoom:16%;" align="center"/>
 
 
 
