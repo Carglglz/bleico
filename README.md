@@ -1,8 +1,8 @@
 # Bleico
 
-<img src="https://raw.githubusercontent.com/Carglglz/bleico/master/docs/bleico_logo.png?token=ADTVSVBACZFRZQTUBLR3EKK7KVRXO" style="zoom:16%;" align="center"/>
 
 
+![](https://github.com/Carglglz/bleico/blob/master/docs/bleico_logo.png?raw=true)
 
 ### Bluetooth Low Energy System Tray Icon
 
