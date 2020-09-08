@@ -56,6 +56,9 @@ print('*'*60)
 print(banner)
 print('*'*60)
 
+if '.bleico' not in os.listdir(os.environ['HOME']):
+    os.mkdir(os.path.join(os.environ['HOME'], ".bleico"))
+
 config_file_name = 'bleico_.config'
 config_file_path = os.path.join(os.environ['HOME'], ".bleico")
 device_is_configurated = config_file_name in os.listdir(config_file_path)
