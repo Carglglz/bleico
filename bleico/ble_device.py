@@ -161,7 +161,10 @@ class BASE_BLE_DEVICE:
 
     # RSSI
     def get_RSSI(self):
-        self.rssi = self.loop.run_until_complete(self.ble_client.get_rssi())
+        if hasattr(self.ble_client, 'get_rssi'):
+            self.rssi = self.loop.run_until_complete(self.ble_client.get_rssi())
+        else:
+            self.rssi = 0
         return self.rssi
     # SERVICES
 
