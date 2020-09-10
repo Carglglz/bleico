@@ -202,10 +202,12 @@ class SystemTrayIcon(QSystemTrayIcon):
                                 Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         self.menu = QMenu(parent)
         # DEVICE INFO
-        self.device_label = QAction("Device: ?")
+        self.device_label = QAction('Device: {}'.format(
+            self.esp32_device.name))
+
         self.menu.addAction(self.device_label)
         self.uuid_menu = self.menu.addMenu("UUID")
-        self.uuid_label = QAction("X")
+        self.uuid_label = QAction('{}'.format(self.esp32_device.UUID))
         self.uuid_label.setEnabled(False)
         self.uuid_menu.addAction(self.uuid_label)
         self.separator = QAction()
@@ -222,16 +224,14 @@ class SystemTrayIcon(QSystemTrayIcon):
                                     '(uint8)', '(uint16)', 'Compound']
 
         self.serv_menu = self.menu.addMenu("Services")
-        if self.debug:
-            self.log.info("Device {} found".format(self.esp32_device.name))
-            self.log.info("Services:")
+
+        self.log.info("Device {} found".format(self.esp32_device.name))
+        self.log.info("Services:")
         for serv in self.esp32_device.services_rsum.keys():
             self.serv_action = self.serv_menu.addMenu("{}".format(serv))
-            if self.debug:
-                self.log.info(" (S) {}".format(serv))
+            self.log.info(" (S) {}".format(serv))
             for char in self.esp32_device.services_rsum[serv]:
-                if self.debug:
-                    self.log.info(" (C)  - {}".format(char))
+                self.log.info(" (C)  - {}".format(char))
                 self.serv_action.addAction(char)
 
         self.servs_separator = QAction()
@@ -254,15 +254,24 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.tooltip_h_ch_field_values_dict = {}
         for key, serv in self.serv_actions_dict.items():
             if key == 'Device Information':
+                self.log.info('Device: {}, UUID: {}'.format(self.esp32_device.name,
+                                                            self.esp32_device.UUID))
+                self.log.info('Device Information:')
                 self.devinfo_menu = self.menu.addMenu(key)
                 for char_handle in self.esp32_device.services_rsum_handles[key]:
                     char = self.esp32_device.readables_handles[char_handle]
                     try:
                         self.char_actions_dict[char_handle] = self.devinfo_menu.addAction("{}: {}".format(char.replace('String', ''), self.esp32_device.device_info[char]))
                         self.char_actions_dict[char_handle].setEnabled(False)
+                        self.log.info("    - {}: {}".format(char.replace('String', ''), self.esp32_device.device_info[char]))
                     except Exception as e:
                         print(e)
                 self.menu.addSeparator()
+            else:
+                pass
+        for key, serv in self.serv_actions_dict.items():
+            if key == 'Device Information':
+                pass
             else:
                 serv.setEnabled(False)
                 self.menu.addAction(serv)
@@ -428,20 +437,12 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.exitAction = self.menu.addAction("Exit")
         self.exitAction.triggered.connect(self.exit_app)
         self.setContextMenu(self.menu)
-        self.device_label.setText('Device: {}'.format(
-            self.esp32_device.name))
-
-        self.uuid_label.setText('{}'.format(self.esp32_device.UUID))
         # Workers
         self.threadpool = QThreadPool()
         self.quit_thread = False
         self.main_server = None
-        if self.debug:
-            self.log.info("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
+        self.log.info("Multithreading with maximum %d threads" % self.threadpool.maxThreadCount())
 
-        if self.debug:
-            self.log.info('Device: {}, UUID: {}'.format(self.esp32_device.name,
-                                                        self.esp32_device.UUID))
         self.splash.clearMessage()
         self.splash.close()
 
@@ -462,6 +463,8 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         # ON EXIT
         self.ready_to_exit = False
+        self.menu_thread_done = False
+        self.notify_thread_done = False
 
     def toggle_notify_sound(self):
         self.notify_sound_is_on = not self.notify_sound_is_on
@@ -554,6 +557,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         if data == 'finished':
             self.log.info("MENU CALLBACK: THREAD FINISH RECEIVED")
             self.ready_to_exit = True
+            self.menu_thread_done = True
         elif data == 'disconnected':
             self.notify("Disconnection event", 'Device {} is now disconnected'.format(self.esp32_device.name))
             for char_handle in self.esp32_device.notifiables_handles:
@@ -794,6 +798,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         progress_callback.emit("finished")
         time.sleep(1)
         self.ready_to_exit = True
+        self.menu_thread_done = True
         self.log.info("FINISHED")
 
     def start_update_menu(self):
@@ -975,6 +980,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         except Exception as e:
             self.log.error('{}'.format(e))
         self.log.info('{}'.format("FINISHED"))
+        self.notify_thread_done = True
 
     def start_notify_char(self):
         # Pass the function to execute
@@ -1074,6 +1080,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         except Exception as e:
             self.quit_thread = True
             self.log.error(e)
+        while not self.notify_thread_done:
+            self.log.info("Waiting for notify thread")
+            time.sleep(1)
         loop_is_running = self.esp32_device.loop.is_running()
         self.log.info("LOOP IS RUNNING : {}".format(loop_is_running))
         if loop_is_running:
@@ -1083,7 +1092,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         time.sleep(2)
 
         try:
-            while not self.ready_to_exit:
+            while not self.menu_thread_done:
                 self.log.info("Waiting for menu thread")
                 time.sleep(1)
             self.log.info("Disconnecting Device...")
