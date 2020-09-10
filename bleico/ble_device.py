@@ -48,7 +48,8 @@ def ble_scan(log=False):
 
 
 class BASE_BLE_DEVICE:
-    def __init__(self, scan_dev, init=False, name=None, lenbuff=100, rssi=None):
+    def __init__(self, scan_dev, init=False, name=None, lenbuff=100,
+                 rssi=None, log=None):
         # BLE
         self.ble_client = None
         if hasattr(scan_dev, 'address'):
@@ -93,6 +94,8 @@ class BASE_BLE_DEVICE:
         self._flush = b''
         self.output = None
         self.platform = None
+        self.break_flag = None
+        self.log = log
         #
         if init:
             self.connect()
@@ -113,12 +116,15 @@ class BASE_BLE_DEVICE:
                 if self.connected:
                     self.name = self.ble_client._device_info.name()
                     if log:
-                        print("Connected to: {}".format(self.UUID))
+                        self.log.info("Connected to: {}".format(self.UUID))
                     break
             except Exception as e:
                 if log:
-                    print(e)
-                    print('Trying again...')
+                    if not self.break_flag:
+                        self.log.error(e)
+                        self.log.info('Trying again...')
+                    else:
+                        break
                 time.sleep(1)
                 n += 1
 
@@ -133,7 +139,7 @@ class BASE_BLE_DEVICE:
         self.connected = await self.ble_client.is_connected()
         if not self.connected:
             if log:
-                print("Disconnected successfully")
+                self.log.info("Disconnected successfully")
 
     def connect(self, n_tries=3, show_servs=False, log=True):
         self.loop.run_until_complete(self.connect_client(n_tries=n_tries,
@@ -663,9 +669,9 @@ class BASE_BLE_DEVICE:
 
 class BLE_DEVICE(BASE_BLE_DEVICE):
     def __init__(self, scan_dev, init=False, name=None, lenbuff=100,
-                 rssi=None):
+                 rssi=None, log=None):
         super().__init__(scan_dev, init=init, name=name, lenbuff=lenbuff,
-                         rssi=rssi)
+                         rssi=rssi, log=log)
         self.appearance = 0
         self.appearance_tag = 'UNKNOWN'
         self.manufacturer = 'UNKNOWN'

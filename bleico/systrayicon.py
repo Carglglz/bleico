@@ -152,11 +152,11 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.splash.showMessage("Scanning for device...",
                                 Qt.AlignHCenter | Qt.AlignBottom, Qt.white)
         # Bledevice
-        self.esp32_device = BLE_DEVICE(device_uuid, init=True)
+        self.esp32_device = BLE_DEVICE(device_uuid, init=True, log=self.log)
         while not self.esp32_device.connected:
             if self._ntries <= max_tries:
-                self.esp32_device = BLE_DEVICE(device_uuid, init=True)
-                time.sleep(1)
+                self.esp32_device = BLE_DEVICE(device_uuid, init=True, log=self.log)
+                time.sleep(0.5)
                 self._ntries += 1
             else:
                 self.log.error("Device {} not found".format(device_uuid))
@@ -176,7 +176,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                     if Scanner.device_to_connect != 'CANCEL':
                         self.log.info('Connecting to device {} ...'.format(Scanner.device_to_connect))
                         self.esp32_device = BLE_DEVICE(Scanner.device_to_connect,
-                                                       init=True)
+                                                       init=True, log=self.log)
                         if self.esp32_device.connected:
                             Scanner.hide()
                             break
@@ -704,6 +704,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         connect_loop = False
         qthread = threading.current_thread()
         qthread.name = 'BleDevThread'
+        self.esp32_device.break_flag = self.quit_thread
         while not self.quit_thread:
             if self.quit_thread:
                 break
@@ -785,10 +786,8 @@ class SystemTrayIcon(QSystemTrayIcon):
                                 break
                         if self.quit_thread:
                             break
-
             time.sleep(1)
         progress_callback.emit("finished")
-        time.sleep(1)
         self.menu_thread_done = True
         self.log.info("FINISHED")
 
@@ -943,7 +942,8 @@ class SystemTrayIcon(QSystemTrayIcon):
                     aio_client_w.write('ok'.encode())
                     self.log.info('{}'.format("Stopping notifications now..."))
                     for char_handle in self.chars_to_notify_handles:
-                        await self.esp32_device.ble_client.stop_notify(char_handle)
+                        if hasattr(self.esp32_device.ble_client, 'stop_notify'):
+                            await self.esp32_device.ble_client.stop_notify(char_handle)
                     aio_client_w.close()
                     self.log.info('{}'.format("Done!"))
                     self.char_to_notify = None
@@ -1059,6 +1059,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.log.info('Shutdown pending tasks...')
         try:
             self.quit_thread = True
+            self.esp32_device.break_flag = self.quit_thread
             if self.main_server:
                 self.main_server.send_message('exit')
                 self.main_server.recv_message()
@@ -1070,21 +1071,29 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.log.error(e)
         while not self.notify_thread_done:
             self.log.info("Waiting for notify thread")
-            time.sleep(1)
+            time.sleep(0.5)
+        try:
+            while not self.menu_thread_done:
+                self.log.info("Waiting for menu thread")
+                time.sleep(0.5)
+            if self.esp32_device.connected:
+                self.log.info("Disconnecting Device...")
+                self.esp32_device.disconnect()
+        except Exception as e:
+            pass
+
         loop_is_running = self.esp32_device.loop.is_running()
         self.log.info("LOOP IS RUNNING : {}".format(loop_is_running))
         if loop_is_running:
             self.shutdown(self.esp32_device.loop)
         # Run loop until tasks done
 
-        time.sleep(2)
-
         try:
             while not self.menu_thread_done:
                 self.log.info("Waiting for menu thread")
-                time.sleep(1)
-            self.log.info("Disconnecting Device...")
+                time.sleep(0.5)
             if self.esp32_device.connected:
+                self.log.info("Disconnecting Device...")
                 self.esp32_device.disconnect()
         except Exception as e:
             pass

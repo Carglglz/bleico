@@ -43,7 +43,7 @@ usag = """%(prog)s [Mode] [options]
 keywords_mode = ['config', 'run']
 log_levs = ['debug', 'info', 'warning', 'error', 'critical']
 parser = argparse.ArgumentParser(prog='bleico',
-                                 description='Bluetooth Low Energy System Tray Icon',
+                                 description='Bluetooth Low Energy System Tray Utility',
                                  formatter_class=argparse.RawTextHelpFormatter,
                                  usage=usag)
 parser.version = '0.0.1'
