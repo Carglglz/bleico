@@ -114,7 +114,7 @@ def main():
     icon = QIcon(os.path.join(SRC_PATH, "UNKNOWN.png"))
     icon.setIsMask(True)
     trayIcon = SystemTrayIcon(icon, device_uuid=upy_conf['uuid'],
-                              logger=log, debug=True,
+                              logger=log,
                               read_timeout=upy_conf['read_timeout'],
                               SRC_PATH=SRC_PATH, SRC_PATH_SOUND=SRC_PATH_SOUND)
     # Menu Update

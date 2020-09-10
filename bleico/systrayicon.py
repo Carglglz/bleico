@@ -127,10 +127,9 @@ class Worker(QRunnable):
 
 class SystemTrayIcon(QSystemTrayIcon):
     def __init__(self, icon, parent=None, device_uuid=None,
-                 logger=None, debug=False, max_tries=0, read_timeout=1,
+                 logger=None, max_tries=0, read_timeout=1,
                  SRC_PATH=None, SRC_PATH_SOUND=None):
         QSystemTrayIcon.__init__(self, icon, parent)
-        self.debug = debug
         self.log = logger
         # CONSOLE LOG # TODO:  MAKE THREAD SAFE (EMIT SIGNAL)
         # self.console_logger = QPlainTextEditLogger()
@@ -462,9 +461,8 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.esp32_device.set_disconnected_callback(self.esp32_device.disconnection_callback)
 
         # ON EXIT
-        self.ready_to_exit = False
         self.menu_thread_done = False
-        self.notify_thread_done = False
+        self.notify_thread_done = True
 
     def toggle_notify_sound(self):
         self.notify_sound_is_on = not self.notify_sound_is_on
@@ -556,7 +554,6 @@ class SystemTrayIcon(QSystemTrayIcon):
         data = response
         if data == 'finished':
             self.log.info("MENU CALLBACK: THREAD FINISH RECEIVED")
-            self.ready_to_exit = True
             self.menu_thread_done = True
         elif data == 'disconnected':
             self.notify("Disconnection event", 'Device {} is now disconnected'.format(self.esp32_device.name))
@@ -624,10 +621,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                                                                                      only_val=True)
 
                                     self.char_actions_dict[char_handle].setText(char_text)
-                                    if self.debug:
-                                        for serv in self.esp32_device.services_rsum.keys():
-                                            if char in self.esp32_device.services_rsum[serv]:
-                                                self.log.info("[{}] {}".format(serv, char_text))
+                                    for serv in self.esp32_device.services_rsum.keys():
+                                        if char in self.esp32_device.services_rsum[serv]:
+                                            self.log.info("[{}] {}".format(serv, char_text))
                                     # SAVE FOR TOOLTIP
                                     for field in self.esp32_device.chars_xml[char].fields:
                                         self.tooltip_h_ch_field_values_dict[char_handle][char][field] = char_text
@@ -639,10 +635,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                                         self.char_fields_actions_dict[char_handle][_bitfield].setText(bitfield_text)
                                         # SAVE FOR TOOLTIP
                                         self.tooltip_h_ch_field_values_dict[char_handle][char][_bitfield] = bitfield_text
-                                        if self.debug:
-                                            for serv in self.esp32_device.services_rsum.keys():
-                                                if char in self.esp32_device.services_rsum[serv]:
-                                                    self.log.info("[{}] {} {}".format(serv, char, bitfield_text))
+                                        for serv in self.esp32_device.services_rsum.keys():
+                                            if char in self.esp32_device.services_rsum[serv]:
+                                                self.log.info("[{}] {} {}".format(serv, char, bitfield_text))
 
                             elif len(self.esp32_device.chars_xml[char].fields) > 1:
                                 for field in self.esp32_device.chars_xml[char].fields:
@@ -676,10 +671,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                                             self.char_fields_actions_dict[char_handle][field].setText(field_text)
                                             # SAVE FOR TOOLTIP
                                             self.tooltip_h_ch_field_values_dict[char_handle][char][field] = field_text
-                                            if self.debug:
-                                                for serv in self.esp32_device.services_rsum.keys():
-                                                    if char in self.esp32_device.services_rsum[serv]:
-                                                        self.log.info("[{}] {} {}".format(serv, char, field_text))
+                                            for serv in self.esp32_device.services_rsum.keys():
+                                                if char in self.esp32_device.services_rsum[serv]:
+                                                    self.log.info("[{}] {} {}".format(serv, char, field_text))
                                         else:
                                             # HANDLE BITFLAGS
                                             bitflagdict = data[char_handle][field]['Value']
@@ -688,10 +682,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                                                 self.char_fields_bitfields_actions_dict[char_handle][field][_bitfield].setText(bitfield_text)
                                                 # SAVE FOR TOOLTIP
                                                 self.tooltip_h_ch_field_values_dict[char_handle][char][_bitfield] = bitfield_text
-                                                if self.debug:
-                                                    for serv in self.esp32_device.services_rsum.keys():
-                                                        if char in self.esp32_device.services_rsum[serv]:
-                                                            self.log.info("[{}] {} ({}) {}".format(serv, char, field, bitfield_text))
+                                                for serv in self.esp32_device.services_rsum.keys():
+                                                    if char in self.esp32_device.services_rsum[serv]:
+                                                        self.log.info("[{}] {} ({}) {}".format(serv, char, field, bitfield_text))
                     # SET TOOLTIP
                     if self.checklist_choices:
                         self.log.info("Tool Tip Fields: {}".format(self.checklist_choices))
@@ -705,8 +698,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                         _av_rssi_val = int(sum(self._rssi_buffer)/len(self._rssi_buffer))
                         self.device_rssi_action.setText('RSSI: {} dBm'.format(_av_rssi_val))
                 except Exception as e:
-                    if self.debug:
-                        self.log.error(traceback.format_exc())
+                    self.log.error(traceback.format_exc())
 
     def update_menu(self, progress_callback):  # define the notify callback inside that takes progress_callback as variable
         connect_loop = False
@@ -797,7 +789,6 @@ class SystemTrayIcon(QSystemTrayIcon):
             time.sleep(1)
         progress_callback.emit("finished")
         time.sleep(1)
-        self.ready_to_exit = True
         self.menu_thread_done = True
         self.log.info("FINISHED")
 
@@ -877,10 +868,6 @@ class SystemTrayIcon(QSystemTrayIcon):
                                     self.char_fields_actions_dict[char_handle][field].setText(field_text)
                                     # SAVE FOR TOOLTIP
                                     self.tooltip_h_ch_field_values_dict[char_handle][char][field] = field_text
-                                    # if self.debug:
-                                    #     for serv in self.esp32_device.services_rsum.keys():
-                                    #         if char in self.esp32_device.services_rsum[serv]:
-                                    #             self.log.info("[{}] {} {}".format(serv, char, field_text))
                                     field_strings.append(field_val)
                                 else:
                                     # HANDLE BITFLAGS
@@ -901,10 +888,9 @@ class SystemTrayIcon(QSystemTrayIcon):
                         self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {}".format(
                             char, data_value_string))
 
-                    if self.debug:
-                        for serv in self.esp32_device.services_rsum.keys():
-                            if char in self.esp32_device.services_rsum[serv]:
-                                self.log.info("Notification: [{}] {} : {}".format(serv, char, data_value_string))
+                    for serv in self.esp32_device.services_rsum.keys():
+                        if char in self.esp32_device.services_rsum[serv]:
+                            self.log.info("Notification: [{}] {} : {}".format(serv, char, data_value_string))
                 else:
                     data_value = get_char_value(data[char_handle], self.esp32_device.chars_xml[char])
                     self.esp32_device.batt_power_state = self.esp32_device.map_powstate(data_value['State']['Value'])
@@ -914,18 +900,20 @@ class SystemTrayIcon(QSystemTrayIcon):
                         if char in self.esp32_device.services_rsum[serv]:
                             nservice = serv
                     if self.do_desktop_notify_char_dict[char_handle]:
-                        self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {} {}".format(char, self.esp32_device.batt_power_state['Charging State'],
-                                                                                                          self.esp32_device.batt_power_state['Level']))
+                        if self.esp32_device.batt_power_state['Level'] == 'Good Level':
+                            self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {} {}".format(char, self.esp32_device.batt_power_state['Charging State'],
+                                                                                                              self.esp32_device.batt_power_state['Level']), typeicon='Info')
+                        else:
+                            self.notify("{}@{}:".format(self.esp32_device.name, nservice), "{} Is now: {} {}".format(char, self.esp32_device.batt_power_state['Charging State'],
+                                                                                                              self.esp32_device.batt_power_state['Level']))
 
-                    if self.debug:
-                        for serv in self.esp32_device.services_rsum.keys():
-                            if char in self.esp32_device.services_rsum[serv]:
-                                self.log.info("Notification: [{}] {} : {} {}".format(serv,
-                                                                                     char, self.esp32_device.batt_power_state['Charging State'],
-                                                                                     self.esp32_device.batt_power_state['Level']))
+                    for serv in self.esp32_device.services_rsum.keys():
+                        if char in self.esp32_device.services_rsum[serv]:
+                            self.log.info("Notification: [{}] {} : {} {}".format(serv,
+                                                                                 char, self.esp32_device.batt_power_state['Charging State'],
+                                                                                 self.esp32_device.batt_power_state['Level']))
         except Exception as e:
-            if self.debug:
-                self.log.error(traceback.format_exc())
+            self.log.error(traceback.format_exc())
 
     def subscribe_notify(self, progress_callback):  # run in thread
         qthread = threading.current_thread()
@@ -983,6 +971,7 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.notify_thread_done = True
 
     def start_notify_char(self):
+        self.notify_thread_done = False
         # Pass the function to execute
         worker_notify = Worker(self.subscribe_notify)  # Any other args, kwargs are passed to the run function
         # worker.signals.result.connect(self.print_output)
@@ -1049,7 +1038,6 @@ class SystemTrayIcon(QSystemTrayIcon):
             pass
 
         self.log.info("ASYNCIO EVENT LOOP: SHUTDOWN COMPLETE")
-        self.ready_to_exit = True
 
     def stop_notify_thread(self):
 
@@ -1065,10 +1053,10 @@ class SystemTrayIcon(QSystemTrayIcon):
 
     def exit_app(self):
         # self.log.removeHandler(self.console_logger)
-        if self.debug:
-            self.log.info('Closing now...')
-            self.log.info('Done!')
-            self.log.info('Shutdown pending tasks...')
+
+        self.log.info('Closing now...')
+        self.log.info('Done!')
+        self.log.info('Shutdown pending tasks...')
         try:
             self.quit_thread = True
             if self.main_server:
