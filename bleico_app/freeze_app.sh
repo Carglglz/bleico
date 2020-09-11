@@ -2,5 +2,5 @@
 # Clear previous installation
 
 echo "Creating app bundle..."
-echo "$(pyinstaller -w -y -n bleico -i bleico.icns --windowed bleico.spec)"
+echo "$(pyinstaller -w -y -n bleico -i bleico.icns --windowed bleico_macos.spec)"
 echo "Done!"
