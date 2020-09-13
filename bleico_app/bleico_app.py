@@ -61,7 +61,7 @@ if '.bleico' not in os.listdir(os.environ['HOME']):
 
 config_file_name = 'bleico_.config'
 config_file_path = os.path.join(os.environ['HOME'], ".bleico")
-device_is_configurated = config_file_name in os.listdir(config_file_path)
+device_is_configured = config_file_name in os.listdir(config_file_path)
 # Logging Setup
 
 log_levels = {'debug': logging.DEBUG, 'info': logging.INFO,
@@ -83,7 +83,7 @@ def main():
     app.setQuitOnLastWindowClosed(False)
 
     # Open Bledevice configuration
-    if device_is_configurated:
+    if device_is_configured:
         upy_conf = load_dev('bleico_', dir=config_file_path)
         if 'read_timeout' not in upy_conf.keys():
             upy_conf['read_timeout'] = 1

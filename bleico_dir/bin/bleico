@@ -52,7 +52,7 @@ parser.add_argument(
 parser.add_argument('-v', action='version')
 parser.add_argument('-t', help='device target uuid')
 parser.add_argument('-s', help='show scanner with available devices', action='store_true')
-parser.add_argument('-r', help='read timeout in seconds', type=int, default=1)
+parser.add_argument('-r', help='read timeout in seconds, default: 1', type=int, default=1)
 parser.add_argument('-dflev',
                     help='debug file mode level, options [debug, info, warning, error, critical]'
                     ).completer = ChoicesCompleter(log_levs)
@@ -98,7 +98,7 @@ $$$$$$$  |$$$$$$$$\ $$$$$$$$\ $$$$$$\ \$$$$$$  | $$$$$$  |
 
     config_file_name = 'bleico_.config'
     config_file_path = os.path.join(os.environ['HOME'], ".bleico")
-    device_is_configurated = config_file_name in os.listdir(config_file_path)
+    device_is_configured = config_file_name in os.listdir(config_file_path)
 
     # Logging Setup
 
@@ -149,7 +149,7 @@ def main():
             sys.exit()
 
     # Open Bledevice configuration
-    if device_is_configurated:
+    if device_is_configured:
         if args.t is None:
             upy_conf = load_dev('bleico_', dir=config_file_path)
             if upy_conf is None:

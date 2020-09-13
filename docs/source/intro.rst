@@ -68,7 +68,7 @@ Bleico comes in two versions, as a command line tool e.g:
       -v            show program's version number and exit
       -t T          device target uuid
       -s            show scanner with available devices
-      -r R          read timeout in seconds
+      -r R          read timeout in seconds, default: 1
       -dflev DFLEV  debug file mode level, options [debug, info, warning, error, critical]
       -dslev DSLEV  debug sys out mode level, options [debug, info, warning, error, critical]
 
@@ -153,7 +153,7 @@ Command Line Tool
 
   .. code-block:: console
 
-      $ pip install https://github.com/Carglglz/bleico/tree/develop
+      $ pip install https://github.com/Carglglz/bleico/tree/develop.zip
 
 
 Standalone Application
