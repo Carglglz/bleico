@@ -167,3 +167,9 @@ Standalone Application
 
 
   - Linux: (Not available yet)
+
+
+Compatibility
+-------------
+Bluetooth SIG services/characteristics
+No device user logging/ complex behaviour/ descriptors read/writing etc

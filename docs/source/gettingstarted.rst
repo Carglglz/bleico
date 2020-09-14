@@ -224,6 +224,6 @@ Run mode
 Standalone Application
 ----------------------
 
-If there is no configured device, the scan dialog will prompt.
-If there is a configured device, it will try to connect to it, and if this not
-possible, the scan dialog will prompt.
+If there is no configured device, the scan dialog will appear.
+If there is a configured device, it will try to connect to it, and if this is not
+possible, the scan dialog will appear again.
