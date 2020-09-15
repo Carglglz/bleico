@@ -16,9 +16,9 @@ characteristic is not present, a generic rhomb (♢) will appear instead.
 Reading Characteristics
 -----------------------
 
-Readable Characteristics are read periodically (every second by default)
+Readable Characteristics are read periodically (every second by default).
 Those characteristics with a single field, its value will appear in the main menu,
-otherwise will be in a submenu.
+otherwise they will be in a submenu.
 
 
 Writing Characteristics

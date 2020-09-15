@@ -393,10 +393,13 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.toggle_desktop_notify_char_actions_dict[char_handle].triggered.connect(self.toggle_desktop_notify)
             # here trigger action --> set flag notify True, start Thread, callback notify ...
         self.notify_menu.addSeparator()
-        self.notify_sound_act = QAction("Notify: Sound off")
+        self.notify_sound_act = QAction("Sound: Disabled")
         self.notify_sound_act.setEnabled(True)
         self.notify_menu.addAction(self.notify_sound_act)
         self.notify_sound_act.triggered.connect(self.toggle_notify_sound)
+        self.notify_status_act = QAction("Status: Enabled")
+        self.notify_menu.addAction(self.notify_status_act)
+        self.notify_status_act.triggered.connect(self.toggle_notify_status)
         self.menu.addSeparator()
         # SET TOOL TIP DIALOG
         self.set_tool_tip_dialog = ChecklistDialog('Set Tool Tip Fields',
@@ -456,6 +459,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                                  'Warning': QSystemTrayIcon.Warning,
                                  'Critical': QSystemTrayIcon.Critical}
         self.notify_sound = QSound(os.path.join(SRC_PATH_SOUND, "definite.wav"))
+        self.notify_status_is_on = True
 
         # Disconnection callback
         self.esp32_device.set_disconnected_callback(self.esp32_device.disconnection_callback)
@@ -467,9 +471,20 @@ class SystemTrayIcon(QSystemTrayIcon):
     def toggle_notify_sound(self):
         self.notify_sound_is_on = not self.notify_sound_is_on
         if self.notify_sound_is_on:
-            self.notify_sound_act.setText("Notify: Sound on")
+            self.notify_sound_act.setText("Sound: Enabled")
+            self.log.info('Notification Sound: Enabled')
         else:
-            self.notify_sound_act.setText("Notify: Sound off")
+            self.notify_sound_act.setText("Sound: Disabled")
+            self.log.info('Notification Sound: Disabled')
+
+    def toggle_notify_status(self):
+        self.notify_status_is_on = not self.notify_status_is_on
+        if self.notify_status_is_on:
+            self.notify_status_act.setText("Status: Enabled")
+            self.log.info('Notification on Status change: Enabled')
+        else:
+            self.notify_status_act.setText("Status: Disabled")
+            self.log.info('Notification on Status change: Disabled')
 
     def check_which_triggered(self, checked):
         action = self.sender()
@@ -556,7 +571,8 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.log.info("MENU CALLBACK: THREAD FINISH RECEIVED")
             self.menu_thread_done = True
         elif data == 'disconnected':
-            self.notify("Disconnection event", 'Device {} is now disconnected'.format(self.esp32_device.name))
+            if self.notify_status_is_on:
+                self.notify("Disconnection event", 'Device {} is now disconnected'.format(self.esp32_device.name))
             for char_handle in self.esp32_device.notifiables_handles:
                 char = self.esp32_device.notifiables_handles[char_handle]
                 self.notify_char_actions_dict[char_handle].setEnabled(False)
@@ -579,9 +595,10 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.device_status_action.setText('Status: Reconnecting...')
 
         elif data == 'connected':
-            self.notify("Reconnection event",
-                        'Device {} is now connected'.format(self.esp32_device.name),
-                        typeicon='Info')
+            if self.notify_status_is_on:
+                self.notify("Reconnection event",
+                            'Device {} is now connected'.format(self.esp32_device.name),
+                            typeicon='Info')
             self.device_status_action.setText('Status: Connected')
             for char_handle in self.esp32_device.notifiables_handles:
                 char = self.esp32_device.notifiables_handles[char_handle]

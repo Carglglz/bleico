@@ -17,7 +17,7 @@ Bleico
 --------------------------------------------
 Bleico is a system tray application/tool to scan, connect, explore and debug
 Bluetooth low energy devices which are compliant with
-`SIG Bluetooth GATT Characteristics <https://www.bluetooth.com/specifications/gatt/characteristics/>`_.
+`Bluetooth SIG GATT Characteristics <https://www.bluetooth.com/specifications/gatt/characteristics/>`_.
 
 * Lincense: GPL-3.0
 * Documentation: https://bleico.readthedocs.io.
@@ -41,8 +41,8 @@ Features
       * Write to Characteristics (from menu or dialog box)
       * Enable desktop notifications on notifiable Characteristics
       * Configurable tool tip
-      * Last update, Connection and RSSI status
-      * Desktop Notification on Connection status changes.
+      * Last update, Connection status and RSSI 
+      * Desktop Notification on Connection status changes (can be disabled).
       * Automatic Reconnection on disconnect, in 30 seconds cycles until reconnected.
 
 
@@ -171,5 +171,15 @@ Standalone Application
 
 Compatibility
 -------------
-Bluetooth SIG services/characteristics
-No device user logging/ complex behaviour/ descriptors read/writing etc
+Right now [#]_ bleico is compatible only with devices that exposes
+GATT services/characteristics defined by
+`Bluetooth SIG Specifications <https://www.bluetooth.com/specifications/gatt/characteristics/>`_.
+
+It assumes also a simple behaviour where bleico can connect to a device
+(acting as a peripheral-server) that do not requires authentication or
+initial write to a descriptor or control point in order to read/write or
+subscribe to notifications/indications of any of its characteristics.
+
+
+.. [#] See `bleak-sigspec <https://bleak-sigspec.readthedocs.io/en/latest/>`_
+       to look into adding a custom/vendor characteristic

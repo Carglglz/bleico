@@ -41,3 +41,9 @@ Bluetooth low energy devices which are compliant with
   :name: developtoc
 
   develop
+
+.. toctree::
+  :caption: Examples:
+  :name: examplestoc
+
+  examples
