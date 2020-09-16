@@ -41,7 +41,7 @@ Features
       * Write to Characteristics (from menu or dialog box)
       * Enable desktop notifications on notifiable Characteristics
       * Configurable tool tip
-      * Last update, Connection status and RSSI 
+      * Last update, Connection status and RSSI
       * Desktop Notification on Connection status changes (can be disabled).
       * Automatic Reconnection on disconnect, in 30 seconds cycles until reconnected.
 
@@ -176,8 +176,8 @@ GATT services/characteristics defined by
 `Bluetooth SIG Specifications <https://www.bluetooth.com/specifications/gatt/characteristics/>`_.
 
 It assumes also a simple behaviour where bleico can connect to a device
-(acting as a peripheral-server) that do not requires authentication or
-initial write to a descriptor or control point in order to read/write or
+(acting as a peripheral-server) that does not require authentication or
+an initial writing to a descriptor or control point in order to read/write or
 subscribe to notifications/indications of any of its characteristics.
 
 

@@ -1,6 +1,5 @@
 Usage
 =====
-Menu usage, writing, and notify
 
 Once the device is connected, an icon will appear in the system tray/menu bar
 according to device Appearance characteristic (if present). If this
@@ -80,6 +79,6 @@ Connection Status
 Connection status is checked every second, and *Last Update* corresponds to last
 time the connection was checked. If the device is disconnected, a desktop
 notification will appear. Bleico will try to reconnect immediately, and if it
-fails, will try to reconnect every 30 seconds until it can connect again.
+fails, bleico will try to reconnect every 30 seconds until it can connect again.
 If the connection is successful a desktop notification will appear, and bleico
 will return to normal operation.
