@@ -35,7 +35,7 @@ Config mode
 ^^^^^^^^^^^
 To configure a default device to connect to, use ``-t`` to indicate the device's
 uuid and ``-r`` to indicate the read timeout in seconds (defaults to 1 second)
-The device configuration will be saved in ``bleico_.config``  under ~/.bleico
+The device configuration will be saved in ``bleico_.config``  under ``~/.bleico``
 directory.
 
 Run mode

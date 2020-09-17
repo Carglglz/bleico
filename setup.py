@@ -30,5 +30,5 @@ setup(name='bleico',
       packages=['bleico'],
       zip_safe=False,
       include_package_data=True,
-      scripts=['bleico_dir/bin/bleico'],
+      scripts=['bleico_cli/bin/bleico'],
       install_requires=['bleak>=0.7.1', 'PyQt5', 'bleak_sigspec'])
