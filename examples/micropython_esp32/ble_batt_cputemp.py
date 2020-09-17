@@ -9,9 +9,9 @@
 # it will advertise for 30 seconds, if there is no connection
 # event, it will enter into deep sleep for 60 seconds.
 # If there is a connection event, it will enter the Connected Mode
-# If there is a disconnection event, it will enter into Save Energy Mode
+# If there is a disconnection event, it will enter into Energy Save Mode
 #
-# Once BLE_Battery_Temp class is initiated it will enter the Save Energy Mode
+# Once BLE_Battery_Temp class is initiated it will enter the Energy Save Mode
 # Battery Level and Temperature Values are an average of 30 previous samples
 
 import bluetooth

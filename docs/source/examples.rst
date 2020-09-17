@@ -104,7 +104,7 @@ peripheral with the following structure:
     it will advertise for 30 seconds, if there is no connection
     event, it will enter into deep sleep for 60 seconds.
     If there is a connection event, it will enter the Connected Mode and
-    if there is a disconnection event, it will enter into Save Energy Mode.
+    if there is a disconnection event, it will enter into Energy Save Mode.
 
 Once ``BLE_Battery_Temp`` class is initiated it will enter the Energy Save Mode.
 
