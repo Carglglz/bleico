@@ -20,12 +20,30 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 from setuptools import setup
 
+
+def readme():
+    with open('README.md', 'r', encoding="utf-8") as f:
+        return f.read()
+
+
 setup(name='bleico',
       version='0.0.1',
       description='Bluetooth Low Energy System Tray App',
+      long_description=readme(),
+      long_description_content_type='text/markdown',
       url='http://github.com/Carglglz/bleico',
       author='Carlos Gil Gonzalez',
       author_email='carlosgilglez@gmail.com',
+      classifiers=[
+                  'Intended Audience :: Developers',
+                  'Intended Audience :: Science/Research',
+                  'Intended Audience :: Education',
+                  'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
+                  'Programming Language :: Python :: 3.7',
+                  'Programming Language :: Python :: 3.8',
+                  'Topic :: System :: Monitoring',
+                  'Topic :: Scientific/Engineering',
+                  'Topic :: Software Development :: Embedded Systems'],
       license='GPL-3.0',
       packages=['bleico'],
       zip_safe=False,
