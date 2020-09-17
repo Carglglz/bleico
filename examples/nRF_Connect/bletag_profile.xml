@@ -1,0 +1,57 @@
+<server-configuration name="bletag_profile">
+   <service uuid="0000180f-0000-1000-8000-00805f9b34fb">
+      <characteristic uuid="00002a19-0000-1000-8000-00805f9b34fb" value="60">
+         <permission name="READ"/>
+         <permission name="WRITE"/>
+         <property name="READ"/>
+      </characteristic>
+      <characteristic uuid="00002a1a-0000-1000-8000-00805f9b34fb" value="BF">
+         <descriptor configure="CCCD"/>
+         <permission name="READ"/>
+         <property name="READ"/>
+         <property name="NOTIFY"/>
+      </characteristic>
+   </service>
+   <service uuid="0000180a-0000-1000-8000-00805f9b34fb">
+      <characteristic uuid="00002a29-0000-1000-8000-00805f9b34fb" value-string="LG Electronics">
+         <permission name="READ"/>
+         <property name="READ"/>
+      </characteristic>
+      <characteristic uuid="00002a01-0000-1000-8000-00805f9b34fb" value="0002">
+         <permission name="READ"/>
+         <property name="READ"/>
+      </characteristic>
+      <characteristic uuid="00002a24-0000-1000-8000-00805f9b34fb" value-string="LG-H870">
+         <permission name="READ"/>
+         <property name="READ"/>
+      </characteristic>
+      <characteristic uuid="00002a26-0000-1000-8000-00805f9b34fb" value-string="Android 9">
+         <permission name="READ"/>
+         <property name="READ"/>
+      </characteristic>
+   </service>
+   <service uuid="0000181a-0000-1000-8000-00805f9b34fb">
+      <characteristic uuid="00002a6e-0000-1000-8000-00805f9b34fb" value="C409">
+         <descriptor configure="CCCD"/>
+         <permission name="READ"/>
+         <permission name="WRITE"/>
+         <property name="READ"/>
+         <property name="WRITE"/>
+         <property name="NOTIFY"/>
+      </characteristic>
+      <characteristic uuid="00002a5d-0000-1000-8000-00805f9b34fb" value="00">
+         <permission name="READ"/>
+         <permission name="WRITE"/>
+         <property name="READ"/>
+         <property name="WRITE"/>
+      </characteristic>
+   </service>
+   <service uuid="00001804-0000-1000-8000-00805f9b34fb">
+      <characteristic uuid="00002a07-0000-1000-8000-00805f9b34fb" value="00">
+         <descriptor configure="CCCD"/>
+         <permission name="READ"/>
+         <property name="READ"/>
+         <property name="INDICATE"/>
+      </characteristic>
+   </service>
+</server-configuration>

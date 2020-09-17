@@ -5,12 +5,12 @@
 # When Battery Level is over 90 % or under 10 % it notifies the Central
 # with the Battery Power State
 #
-# Save Energy Mode: To save Battery power,
+# Energy Save Mode: To save Battery power,
 # it will advertise for 30 seconds, if there is no connection
 # event, it will enter into deep sleep for 60 seconds.
 # If there is a connection event, it will enter the Connected Mode
 # If there is a disconnection event, it will enter into Save Energy Mode
-
+#
 # Once BLE_Battery_Temp class is initiated it will enter the Save Energy Mode
 # Battery Level and Temperature Values are an average of 30 previous samples
 
@@ -21,12 +21,10 @@ from ble_advertising import advertising_payload
 from machine import ADC, Pin, Timer, deepsleep, unique_id
 from micropython import const
 from array import array
-from ads1115 import ADS1115
-from init_ADS import MY_ADS, i2c
-from upynotify import NOTIFYER
 from binascii import hexlify
 import os
 import sys
+import esp32
 
 _IRQ_CENTRAL_CONNECT = const(1)
 _IRQ_CENTRAL_DISCONNECT = const(2)
@@ -128,26 +126,31 @@ _DEV_INF_SERV_SERVICE = (
 )
 
 
+def get_esp32_temp():
+    ftemp = esp32.raw_temperature()
+    ctemp = ((ftemp) - 32) / 1.8
+    return ctemp
+
+
 class BLE_Battery_Temp:
     def __init__(self, ble, name="esp32-batt-temp", led=None):
         self.bat = ADC(Pin(35))
         self.bat.atten(ADC.ATTN_11DB)
         self.bat_timer = Timer(-1)
-        self.ads_dev = MY_ADS(ADS1115, i2c)
-        self.ads_dev.init()
+        self.ads_dev = get_esp32_temp
         self.led = led
         # self.ads_dev.ads.conversion_start(7, channel1=self.ads_dev.channel)
         self.irq_busy = False
-        self.buzz = NOTIFYER(25, 13)
+        self.buzz = None
         self.i = 0
         self._batt_charged = False
         self._batt_discharged = False
         self._is_connected = False
-        self.max_temp = 25
-        self.min_temp = 20
+        self.max_temp = 65
+        self.min_temp = 50
         bat_volt = round(((self.bat.read()*2)/4095)*3.6, 2)
         percentage = int(round((bat_volt - 3.3) / (4.23 - 3.3) * 100, 1))
-        temp_volt = int(self.ads_dev.read_V() * (25/0.75)) * 100
+        temp_volt = int(self.ads_dev()) * 100
         self.batt_buffer = array('B', (percentage for _ in range(30)))
         self.temp_buffer = array('h', (temp_volt for _ in range(30)))
         self.buffer_index = 0
@@ -160,7 +163,9 @@ class BLE_Battery_Temp:
         self._ble.config(gap_name='ESP32-Temp')
         self._ble.irq(handler=self._irq)
         ((self._appear, self._manufact, self._model,
-          self._serialn, self._firm, self._hardw, self._softw), (self._level_, self._powstate), (self._temp, self._rangetemp)) = self._ble.gatts_register_services(
+          self._serialn, self._firm, self._hardw, self._softw),
+         (self._level_, self._powstate),
+         (self._temp, self._rangetemp)) = self._ble.gatts_register_services(
             (_DEV_INF_SERV_SERVICE, _BATT_SERV_SERVICE, _TEMP_SERV_SERVICE))
         self._connections = set()
         self._payload = advertising_payload(
@@ -187,7 +192,8 @@ class BLE_Battery_Temp:
         #                                                  'utf8'))
         for i in range(5):
             for k in range(4):
-                self.led.value(not self.led.value())
+                if self.led:
+                    self.led.value(not self.led.value())
                 time.sleep(0.2)
             time.sleep(0.5)
         self.start_check_conn()
@@ -198,7 +204,8 @@ class BLE_Battery_Temp:
             conn_handle, _, _, = data
             self._connections.add(conn_handle)
             self.is_connected = True
-            self.buzz.buzz_beep(150, 2, 100, 4000)
+            if self.buzz:
+                self.buzz.buzz_beep(150, 2, 100, 4000)
             self.stop_batt_bg()
             self.start_batt_bg(timeout=30000)
         elif event == _IRQ_CENTRAL_DISCONNECT:
@@ -207,7 +214,8 @@ class BLE_Battery_Temp:
             self.is_connected = False
             self._connections.remove(conn_handle)
             for k in range(4):
-                self.led.value(not self.led.value())
+                if self.led:
+                    self.led.value(not self.led.value())
                 time.sleep(0.2)
             # Start advertising again to allow a new connection.
             self._advertise()
@@ -224,7 +232,7 @@ class BLE_Battery_Temp:
         # Write the local value, ready for a central to read.
         bat_volt = round(((self.bat.read()*2)/4095)*3.6, 2)
         percentage = int(round((bat_volt - 3.3) / (4.23 - 3.3) * 100, 1))
-        temp_volt = self.ads_dev.read_V() * (25/0.75)
+        temp_volt = self.ads_dev()
         amb_temp = int(round(temp_volt, 2) * 100)
         if self.buffer_index >= 30:
             self.buffer_index = 0
@@ -294,7 +302,8 @@ class BLE_Battery_Temp:
                 return
             else:
                 for k in range(4):
-                    self.led.value(not self.led.value())
+                    if self.led:
+                        self.led.value(not self.led.value())
                     time.sleep(0.2)
                 print('No connections received, deepsleep for 60 s...')
                 deepsleep(60000)

@@ -6,3 +6,28 @@
 
 ### Bluetooth Low Energy System Tray Icon
 
+Bleico is a system tray application/tool to scan, connect, explore and debug
+Bluetooth low energy devices which are compliant with [Bluetooth SIG GATT Characteristics](https://www.bluetooth.com/specifications/gatt/characteristics/).
+
+* Lincense: GPL-3.0
+* Documentation: https://bleico.readthedocs.io.
+
+
+It is based on [bleak](https://bleak.readthedocs.io/en/latest/), [bleak-sigspec](https://bleak-sigspec.readthedocs.io/en/latest/) and [PyQt5](https://pypi.org/project/PyQt5/)
+
+### Features
+* Bluetooth Low Energy Scanner
+* __System Tray Menu__ with:
+  * Icon according to Appearance characteristic (if present)
+  * Device Name
+  * Device UUID
+  * Services and Characteristics menu tree
+  * Device information (if present)
+  * Readable and writeable Characteristics organised in sections by services
+  * Read periodically from Characteristics
+  * Write to Characteristics (from menu or dialog box)
+  * Enable desktop notifications on notifiable Characteristics
+  * Configurable tool tip
+  * Last update, Connection status and RSSI
+  * Desktop Notification on Connection status changes (can be disabled).
+  * Automatic Reconnection on disconnect, in 30 seconds cycles until reconnected.
