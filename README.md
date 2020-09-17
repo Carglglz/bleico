@@ -31,3 +31,26 @@ It is based on [bleak](https://bleak.readthedocs.io/en/latest/), [bleak-sigspec]
   * Last update, Connection status and RSSI
   * Desktop Notification on Connection status changes (can be disabled).
   * Automatic Reconnection on disconnect, in 30 seconds cycles until reconnected.
+
+
+
+### Installation
+
+#### Command Line Tool
+
+Install ``bleico`` by running:
+
+```bash
+$ pip install bleico
+```
+
+Or get latest development version:  
+
+```bash
+$ pip install https://github.com/Carglglz/bleico/tree/develop.zip
+```
+
+#### Standalone Application
+
+Download from [Releases](https://github.com/Carglglz/bleico/releases/new)
+
