@@ -737,7 +737,11 @@ class SystemTrayIcon(QSystemTrayIcon):
                                     if self.quit_thread:
                                         break
                                     else:
-                                        data[char_handle] = (self.esp32_device.get_char_value(char, handle=char_handle))
+                                        try:
+                                            data[char_handle] = (self.esp32_device.get_char_value(char, handle=char_handle))
+                                        except struct.error:
+                                            self.log.error("Char: {}, Error: Wrong encoding format".format(char))
+                                            data[char_handle] = {char: {"Value": " ", "Symbol":"?"}}
                             data['DEVICE_RSSI'] = self.esp32_device.get_RSSI()
                             progress_callback.emit(data)
                             self._timeout_count = 0
@@ -826,7 +830,11 @@ class SystemTrayIcon(QSystemTrayIcon):
             for char_handle in data.keys():
                 char = self.esp32_device.notifiables_handles[char_handle]
                 if char != 'Battery Power State':
-                    data_value = get_char_value(data[char_handle], self.esp32_device.chars_xml[char])
+                    try:
+                        data_value = get_char_value(data[char_handle], self.esp32_device.chars_xml[char])
+                    except struct.error:
+                        self.log.error("Notification Char: {}, Error: Wrong encoding format".format(char))
+                        data_value = {char: {"Value": " ", "Symbol":"?"}}
                     if len(self.esp32_device.chars_xml[char].fields) == 1:
                         # CHECK IF BITFIELD
                         _bfield = False
@@ -908,7 +916,11 @@ class SystemTrayIcon(QSystemTrayIcon):
                         if char in self.esp32_device.services_rsum[serv]:
                             self.log.info("Notification: [{}] {} : {}".format(serv, char, data_value_string))
                 else:
-                    data_value = get_char_value(data[char_handle], self.esp32_device.chars_xml[char])
+                    try:
+                        data_value = get_char_value(data[char_handle], self.esp32_device.chars_xml[char])
+                    except struct.error:
+                        self.log.error("Notification Char: {}, Error: Wrong encoding format".format(char))
+                        data_value = {char: {"Value": " ", "Symbol":"?"}}
                     self.esp32_device.batt_power_state = self.esp32_device.map_powstate(data_value['State']['Value'])
                     for state, value in self.esp32_device.batt_power_state.items():
                         self.battery_power_state_actions_dict[state].setText("{}: {}".format(state, value))
@@ -1087,11 +1099,11 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.quit_thread = True
             self.log.error(e)
         while not self.notify_thread_done:
-            self.log.info("Waiting for notify thread")
+            self.log.info("Waiting for NotifyThread")
             time.sleep(0.5)
         try:
             while not self.menu_thread_done:
-                self.log.info("Waiting for menu thread")
+                self.log.info("Waiting for BleDevThread")
                 time.sleep(0.5)
             if self.esp32_device.connected:
                 self.log.info("Disconnecting Device...")
@@ -1107,7 +1119,7 @@ class SystemTrayIcon(QSystemTrayIcon):
 
         try:
             while not self.menu_thread_done:
-                self.log.info("Waiting for menu thread")
+                self.log.info("Waiting for BleDevThread")
                 time.sleep(0.5)
             if self.esp32_device.connected:
                 self.log.info("Disconnecting Device...")
