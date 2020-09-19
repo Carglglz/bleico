@@ -158,7 +158,7 @@ Command Line Tool
 
 Standalone Application
 ^^^^^^^^^^^^^^^^^^^^^^
-  Download from `Releases <https://github.com/Carglglz/bleico/releases/new>`_:
+  Download from `Releases <https://github.com/Carglglz/bleico/releases>`_:
 
   - MacOS:
       * bleico_img.dmg

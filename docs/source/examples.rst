@@ -55,8 +55,8 @@ notifications/indications ⬆️ can be sent to the client.
 .. warning::
 
     Be aware to write the values in the right format, otherwise data will appear
-    as invalid, bleico will raise a wrong format error and a '?' symbol will be
-    shown instead.
+    as invalid, bleico will raise a wrong format error and a question
+    mark ('?') will be shown instead.
 
 Esp32 (MicroPython)
 -------------------

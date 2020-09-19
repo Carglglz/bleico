@@ -52,5 +52,5 @@ $ pip install https://github.com/Carglglz/bleico/tree/develop.zip
 
 #### Standalone Application
 
-Download from [Releases](https://github.com/Carglglz/bleico/releases/new)
+Download from [Releases](https://github.com/Carglglz/bleico/releases)
 
