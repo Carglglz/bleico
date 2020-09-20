@@ -27,6 +27,7 @@ from bleico.ble_device import BLE_DEVICE  # get own ble_device
 from bleico.set_value_dialog import SetValueDialog
 from bleico.set_tooltip_dialog import ChecklistDialog
 from bleico.ble_scanner_widget import BleScanner
+from bleico.characteristic_metadata_widget import CharacteristicViewer
 # from bleico.console_log import QPlainTextEditLogger
 from PyQt5.QtCore import QCoreApplication
 from datetime import datetime
@@ -222,6 +223,9 @@ class SystemTrayIcon(QSystemTrayIcon):
         self.avoid_field_strings = ['Measurement', 'Value', 'String',
                                     '(uint8)', '(uint16)', 'Compound']
 
+        self.metadata_chars = {}
+        self.metadata_chars_view = {}
+
         self.serv_menu = self.menu.addMenu("Services")
 
         self.log.info("Device {} found".format(self.esp32_device.name))
@@ -231,7 +235,13 @@ class SystemTrayIcon(QSystemTrayIcon):
             self.log.info(" (S) {}".format(serv))
             for char in self.esp32_device.services_rsum[serv]:
                 self.log.info(" (C)  - {}".format(char))
-                self.serv_action.addAction(char)
+                self.metadata_chars[char] = self.serv_action.addAction(char)
+                self.metadata_chars[char].triggered.connect(self.check_which_triggered_view)
+                try:
+                    metadata_char = self.esp32_device.chars_xml[char]
+                    self.metadata_chars_view[char] = CharacteristicViewer(char=metadata_char)
+                except Exception as e:
+                    self.log.error(traceback.format_exc())
 
         self.servs_separator = QAction()
         self.servs_separator.setSeparator(True)
@@ -264,7 +274,7 @@ class SystemTrayIcon(QSystemTrayIcon):
                         self.char_actions_dict[char_handle].setEnabled(False)
                         self.log.info("    - {}: {}".format(char.replace('String', ''), self.esp32_device.device_info[char]))
                     except Exception as e:
-                        print(e)
+                        self.log.error(traceback.format_exc())
                 self.menu.addSeparator()
             else:
                 pass
@@ -549,6 +559,14 @@ class SystemTrayIcon(QSystemTrayIcon):
                         self.log.info('Showing {} Set Value Control'.format(char))
                         self.write_char_actions_dict[char_handle]["set_value_box"].show()
                         self.write_char_actions_dict[char_handle]["set_value_box"].raise_()
+
+    def check_which_triggered_view(self, checked):
+        action = self.sender()
+        for char in self.metadata_chars_view:
+            if action == self.metadata_chars[char]:
+                self.log.info('Showing {} Metadata View'.format(char))
+                self.metadata_chars_view[char].show()
+                self.metadata_chars_view[char].raise_()
 
     def toggle_desktop_notify(self, checked):
         action = self.sender()
