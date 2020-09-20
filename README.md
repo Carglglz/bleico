@@ -4,7 +4,7 @@
   <img src="https://github.com/Carglglz/bleico/blob/master/docs/bleico_logo.png?raw=true" width="360"/>
 </p>
 
-### Bluetooth Low Energy System Tray Icon
+### Bluetooth Low Energy System Tray Utility
 
 Bleico is a system tray application/tool to scan, connect, explore and debug
 Bluetooth low energy devices which are compliant with [Bluetooth SIG GATT Characteristics](https://www.bluetooth.com/specifications/gatt/characteristics/).
