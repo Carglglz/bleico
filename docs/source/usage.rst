@@ -12,6 +12,19 @@ characteristic is not present, a generic rhomb (♢) will appear instead.
     :width: 45%
 
 
+Characteristics Metadata View
+-----------------------------
+Under `Services` menu are the available services, and under each of them its
+characteristics. Clicking in a characteristic will show the Characteristic's
+metadata dialog.
+
+.. image:: img/characteristic_metadata.png
+    :target: https://github.com/Carglglz/bleico
+    :alt: Bleico App
+    :align: center
+    :width: 95%
+
+
 Reading Characteristics
 -----------------------
 

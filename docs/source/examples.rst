@@ -12,11 +12,11 @@ nRF Connect
 Put ``bletag_profile.xml`` in the mobile device and load the profile in
 `Configure GATT server` option
 
-.. image:: img/bletag_profile.png
+.. image:: img/bletag_profileph.png
     :target: https://github.com/Carglglz/bleico
     :alt: Bletag
     :align: center
-    :width: 40%
+    :width: 90%
 
 This example demonstrates a simple ble tag
 peripheral with the following structure:

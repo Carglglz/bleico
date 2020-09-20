@@ -74,7 +74,22 @@ logging.basicConfig(
     format="%(asctime)s [%(name)s] [%(threadName)s] [%(levelname)s] %(message)s",
     # format="%(asctime)s [%(name)s] [%(process)d] [%(threadName)s] [%(levelname)s]  %(message)s",
     handlers=[handler])
+
 log = logging.getLogger('bleico')
+# DEBUG TO LOG FILE
+# logfolder = 'logs'
+# logPath = os.path.join(config_file_path, logfolder)
+# if logfolder not in os.listdir(config_file_path):
+#     os.mkdir(logPath)
+# logfileName = 'bleico_debug.log'
+# # Filehandler for error
+# fh_err = logging.FileHandler(os.path.join(logPath, logfileName))
+# fh_err.setLevel(log_levels['info'])
+# # Formatter for errors
+# fmt_err = logging.Formatter("%(asctime)s [%(name)s] [%(threadName)s] [%(levelname)s]  %(message)s")
+# fh_err.setFormatter(fmt_err)
+# log.addHandler(fh_err)
+
 log.info('Running bleico {}'.format('0.0.1'))
 
 

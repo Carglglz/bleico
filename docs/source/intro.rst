@@ -35,6 +35,7 @@ Features
       * Device Name
       * Device UUID
       * Services and Characteristics menu tree
+      * Characteristic Metadata view
       * Device information (if present)
       * Readable and writeable Characteristics organised in sections by services
       * Read periodically from Characteristics
