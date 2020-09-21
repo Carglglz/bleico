@@ -94,7 +94,13 @@ class CharacteristicViewer(QtWidgets.QWidget):
             myQListWidgetItem, myQCustomQWidget)
 
     def cancel_and_exit(self):
+        item = self.myQListWidget.currentItem()
+        if item:
+            item.setSelected(False)
         self.hide()
 
     def closeEvent(self, event):
         event.accept()
+        item = self.myQListWidget.currentItem()
+        if item:
+            item.setSelected(False)
