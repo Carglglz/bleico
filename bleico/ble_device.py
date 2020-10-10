@@ -170,78 +170,52 @@ class BASE_BLE_DEVICE:
 
     def get_services(self, log=True):
         for service in self.ble_client.services:
-            if service.description == 'Nordic UART Service':
-                is_NUS = True
-                if log:
-                    print("[Service] {0}: {1}".format(
-                        service.uuid.lower(), service.description))
-                self.services[service.description] = {
-                    'UUID': service.uuid.lower(), 'CHARS': {}}
-            else:
-                is_NUS = False
-                if log:
-                    print("[Service] {0}: {1}".format(
-                        service.uuid.lower(), service.description))
-                self.services[service.description] = {
-                    'UUID': service.uuid.lower(), 'CHARS': {}}
-                self.services_rsum_handles[service.description] = []
+            if log:
+                print("[Service] {0}: {1}".format(
+                    service.uuid.lower(), service.description))
+            self.services[service.description] = {
+                'UUID': service.uuid.lower(), 'CHARS': {}}
+            self.services_rsum_handles[service.description] = []
 
             for char in service.characteristics:
-                if is_NUS:
-                    if "read" in char.properties or "notify" in char.properties:
+                self.services_rsum_handles[service.description].append(char.handle)
+                if "read" in char.properties:
+                    try:
                         self.readables[char.description] = char.uuid
-                    if "write" in char.properties:
-                        self.writeables[char.description] = char.uuid
-                    try:
-                        self.services[service.description]['CHARS'][char.uuid] = {char.description: ",".join(
-                            char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
-                    except Exception as e:
-
-                        self.services[service.description]['CHARS'][char.uuid] = {char.description: ",".join(
-                            char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
-                else:
-                    self.services_rsum_handles[service.description].append(char.handle)
-                    if "read" in char.properties:
-                        try:
-                            self.readables[char.description] = char.uuid
-                            self.readables_handles[char.handle] = char.description
-                        except Exception as e:
-                            print(e)
-
-                    if "notify" in char.properties or 'indicate' in char.properties:
-                        try:
-                            self.notifiables[char.description] = char.uuid
-                            self.notifiables_handles[char.handle] = char.description
-                        except Exception as e:
-                            print(e)
-
-                    if "write" in char.properties or 'write-without-response' in char.properties:
-                        try:
-                            self.writeables[char.description] = char.uuid
-                            self.writeables_handles[char.handle] = char.description
-                        except Exception as e:
-                            print(e)
-                    try:
-                        self.services[service.description]['CHARS'][char.uuid] = {char.description: ",".join(
-                            char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
+                        self.readables_handles[char.handle] = char.description
                     except Exception as e:
                         print(e)
+
+                if "notify" in char.properties or 'indicate' in char.properties:
+                    try:
+                        self.notifiables[char.description] = char.uuid
+                        self.notifiables_handles[char.handle] = char.description
+                    except Exception as e:
+                        print(e)
+
+                if "write" in char.properties or 'write-without-response' in char.properties:
+                    try:
+                        self.writeables[char.description] = char.uuid
+                        self.writeables_handles[char.handle] = char.description
+                    except Exception as e:
+                        print(e)
+                try:
+                    self.services[service.description]['CHARS'][char.uuid] = {char.description: ",".join(
+                        char.properties), 'Descriptors': {descriptor.uuid: descriptor.handle for descriptor in char.descriptors}}
+                except Exception as e:
+                    print(e)
 
                     self.chars_desc_rsum[char.description] = {}
                     for descriptor in char.descriptors:
                         self.chars_desc_rsum[char.description][descriptor.description] = descriptor.handle
                 if log:
-                    if is_NUS:
+
+                    try:
                         print("\t[Characteristic] {0}: ({1}) | Name: {2}".format(
                             char.uuid, ",".join(
                                 char.properties), char.description))
-                    else:
-                        try:
-                            print("\t[Characteristic] {0}: ({1}) | Name: {2}".format(
-                                char.uuid, ",".join(
-                                    char.properties), char.description))
-                        except Exception as e:
-                            print(e)
+                    except Exception as e:
+                        print(e)
 
                 if log:
                     for descriptor in char.descriptors:
