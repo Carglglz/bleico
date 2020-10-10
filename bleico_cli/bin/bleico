@@ -31,6 +31,7 @@ from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QCoreApplication
 from argcomplete.completers import ChoicesCompleter
+from bleico import version as bleico_version
 
 helparg = '''Mode:
 - config
@@ -46,7 +47,7 @@ parser = argparse.ArgumentParser(prog='bleico',
                                  description='Bluetooth Low Energy System Tray Utility',
                                  formatter_class=argparse.RawTextHelpFormatter,
                                  usage=usag)
-parser.version = '0.0.1'
+parser.version = bleico_version
 parser.add_argument(
     "m", metavar='Mode', help=helparg).completer = ChoicesCompleter(keywords_mode)
 parser.add_argument('-v', action='version')

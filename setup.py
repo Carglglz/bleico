@@ -27,7 +27,7 @@ def readme():
 
 
 setup(name='bleico',
-      version='0.0.1',
+      version='0.0.2',
       description='Bluetooth Low Energy System Tray App',
       long_description=readme(),
       long_description_content_type='text/markdown',
@@ -49,4 +49,4 @@ setup(name='bleico',
       zip_safe=False,
       include_package_data=True,
       scripts=['bleico_cli/bin/bleico'],
-      install_requires=['bleak>=0.8.0', 'PyQt5', 'bleak_sigspec>=0.0.3'])
+      install_requires=['bleak>=0.8.0', 'PyQt5', 'bleak_sigspec>=0.0.4'])
