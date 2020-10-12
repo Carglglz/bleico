@@ -254,7 +254,10 @@ class SetValueDialog(QWidget):
                     if self.char_fields[field]['Requirement'] == 'Mandatory':
                         if text == '':
                             text = '0'
-                        formatted_value = ast.literal_eval(text)
+                        try:
+                            formatted_value = ast.literal_eval(text)
+                        except Exception as e:
+                            formatted_value = text
 
                         if 'Reference' in self.char_fields[field]:
                             ref_index = 0
@@ -282,7 +285,10 @@ class SetValueDialog(QWidget):
                             if self.format_fields[field] == 'F' or self.format_fields[field] == 'S':
                                 self.value_fields[field] = formatted_value
                             else:
-                                self.value_fields[field] = int(formatted_value)
+                                try:
+                                    self.value_fields[field] = int(formatted_value)
+                                except Exception as e:
+                                    self.value_fields[field] = formatted_value
                             self.global_format += self.format_fields[field]
                             if 'Symbol' in self.char_fields[field]:
                                 self.log.info('Value: {} {}'.format(text, self.char_fields[field]['Symbol']))

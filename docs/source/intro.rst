@@ -176,6 +176,10 @@ Right now [#]_ bleico is compatible only with devices that exposes
 GATT services/characteristics defined by
 `Bluetooth SIG Specifications <https://www.bluetooth.com/specifications/gatt/characteristics/>`_.
 
+Added in bleico v0.0.2:
+^^^^^^^^^^^^^^^^^^^^^^^
+- Compatibility with Nordic UART RX, Nordic UART TX characteristics.
+
 It assumes also a simple behaviour where bleico can connect to a device
 (acting as a peripheral-server) that does not require authentication or
 an initial writing to a descriptor or control point in order to read/write or

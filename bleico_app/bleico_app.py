@@ -25,6 +25,7 @@ from bleico.devtools import load_dev
 from PyQt5.QtGui import QIcon
 from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QCoreApplication
+from bleico import version as bleico_version
 
 frozen = 'not'
 if getattr(sys, 'frozen', False):
@@ -90,7 +91,7 @@ log = logging.getLogger('bleico')
 # fh_err.setFormatter(fmt_err)
 # log.addHandler(fh_err)
 
-log.info('Running bleico {}'.format('0.0.1'))
+log.info('Running bleico {}'.format(bleico_version))
 
 
 def main():

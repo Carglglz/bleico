@@ -42,7 +42,7 @@ app = BUNDLE(coll,
              name='bleico.app',
              icon='bleico.icns',
              bundle_identifier='com.carglglz.bleico',
-             info_plist={'CFBundleShortVersionString': '0.0.1',
+             info_plist={'CFBundleShortVersionString': '0.0.2',
             'NSPrincipalClass': 'NSApplication',
             'LSUIElement': '1',
           	'NSHighResolutionCapable': 'True'})
